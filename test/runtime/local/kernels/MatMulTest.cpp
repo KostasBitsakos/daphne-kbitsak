@@ -162,3 +162,43 @@ TEMPLATE_TEST_CASE("MatMulSparse", TAG_KERNELS, (float)) {
     DataObjectFactory::destroy(m2);
     DataObjectFactory::destroy(m3);
 }
+
+
+TEMPLATE_TEST_CASE("MatMulSparse", TAG_KERNELS, (double)) {
+    using VT = TestType;
+    using DT = CSRMatrix<VT>;
+    using DenseDT= DenseMatrix<VT>;
+    
+    auto m0 = genGivenVals<DenseDT>(3, {
+            2, 4, 3,
+            1, 2, 0,
+            0, 0, 0 
+    });
+    auto m1 = genGivenVals<DT>(3, {
+            1, 2, 0, 
+            0, 1, 0,
+            0, 0, 0 
+          
+    });
+    auto m2 = genGivenVals<DT>(3, {
+            0, 0, 3, 
+            1, 2, 0, 
+            0, 0, 4
+    });
+    auto m3 = genGivenVals<DenseDT>(3, {
+            0, 0, 0, 
+            1, 4, 0, 
+            0, 0, 0
+    });
+    
+
+
+    checkMatMulSparse(m1, m2, m0);
+    checkMatMulSparse(m2, m1, m3);
+    
+   
+    DataObjectFactory::destroy(m0);
+    DataObjectFactory::destroy(m1);
+    DataObjectFactory::destroy(m2);
+    DataObjectFactory::destroy(m3);
+}

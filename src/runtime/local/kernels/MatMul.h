@@ -113,9 +113,9 @@ struct MatMul<DenseMatrix<double>, DenseMatrix<double>, DenseMatrix<double>> {
 // DENSEMatrix <- CSRMatrix, CSRMatrix
 // ----------------------------------------------------------------------------
 
-template<typename VT>
-struct MatMul<DenseMatrix<VT>, CSRMatrix<VT>, CSRMatrix<VT>> {
-    static void apply(DenseMatrix<VT> *& res, const CSRMatrix<VT> * lhs, const CSRMatrix<VT> * rhs, DCTX(ctx)) {
+template<>
+struct MatMul<DenseMatrix<double>, CSRMatrix<double>, CSRMatrix<double>> {
+    static void apply(DenseMatrix<double> *& res, const CSRMatrix<double> * lhs, const CSRMatrix<double> * rhs, DCTX(ctx)) {
 
         const auto nr1 = static_cast<int>(lhs->getNumRows());
         const auto nc1 = static_cast<int>(lhs->getNumCols());
@@ -125,7 +125,7 @@ struct MatMul<DenseMatrix<VT>, CSRMatrix<VT>, CSRMatrix<VT>> {
 
 
         if(res == nullptr)
-            res = DataObjectFactory::create<DenseMatrix<VT>>(nr1, nc2, false);
+            res = DataObjectFactory::create<DenseMatrix<double>>(nr1, nc2, false);
 
 
 
@@ -139,11 +139,11 @@ struct MatMul<DenseMatrix<VT>, CSRMatrix<VT>, CSRMatrix<VT>> {
 
 
                  for(size_t c=0; c<nc2; c++){     // iterate columns of second array
-                     VT result=0;     
+                     double result=0;     
                      for(size_t clhs=0; clhs<NonZeros; clhs++){
                          size_t nonZeroColId=colIdxsRowLhs[clhs];   // iterate non zero elemens
-                         VT lelement=lhs->get(r,nonZeroColId);
-                         VT relement=rhs->get(nonZeroColId,c);
+                         double lelement=lhs->get(r,nonZeroColId);
+                         double relement=rhs->get(nonZeroColId,c);
                          result+=lelement*relement;
 
                      }
@@ -161,10 +161,67 @@ struct MatMul<DenseMatrix<VT>, CSRMatrix<VT>, CSRMatrix<VT>> {
                 }
              }
 
-             res->print(std::cout);
+             
 
             }
 
+        
+};
+
+
+
+
+template<>
+struct MatMul<DenseMatrix<float>, CSRMatrix<float>, CSRMatrix<float>> {
+    static void apply(DenseMatrix<float> *& res, const CSRMatrix<float> * lhs, const CSRMatrix<float> * rhs, DCTX(ctx)) {
+
+        const auto nr1 = static_cast<int>(lhs->getNumRows());
+        const auto nc1 = static_cast<int>(lhs->getNumCols());
+        const auto nc2 = static_cast<int>(rhs->getNumCols());
+        assert((nc1 == static_cast<int>(rhs->getNumRows())) && "#cols of lhs and #rows of rhs must be the same");
+
+
+
+        if(res == nullptr)
+            res = DataObjectFactory::create<DenseMatrix<float>>(nr1, nc2, false);
+
+
+
+
+         for(size_t r = 0; r < nr1; r++) {   // iterate rows of left array
+             size_t NonZeros=lhs->getNumNonZeros(r);
+             if (NonZeros){
+                 const size_t * colIdxsRowLhs = lhs->getColIdxs(r);   // array with all non Zeros columns on Left Matrix
+                 
+
+
+
+                 for(size_t c=0; c<nc2; c++){     // iterate columns of second array
+                     float result=0;     
+                     for(size_t clhs=0; clhs<NonZeros; clhs++){
+                         size_t nonZeroColId=colIdxsRowLhs[clhs];   // iterate non zero elemens
+                         float lelement=lhs->get(r,nonZeroColId);
+                         float relement=rhs->get(nonZeroColId,c);
+                         result+=lelement*relement;
+
+                     }
+
+                     
+                     res->set(r,c,result);
+                 }
+             }
+             else {
+                 for(size_t c=0; c<nc2; c++){ 
+                     res->set(r,c,0);   //automaticaly set to 0 if no NonZero elements on this row
+
+                    }
+
+                }
+             }
+
+             
+
+            }
 
         
 };
