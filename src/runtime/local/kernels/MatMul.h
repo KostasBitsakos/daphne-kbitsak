@@ -101,3 +101,29 @@ struct MatMul<DenseMatrix<double>, DenseMatrix<double>, DenseMatrix<double>> {
                     static_cast<int>(rhs->getRowSkip()), 0, res->getValues(), static_cast<int>(res->getRowSkip()));
     }
 };
+
+
+template<>
+struct MatMul<DenseMatrix<int64_t>, DenseMatrix<int64_t>, DenseMatrix<int64_t>> {
+    static void apply(DenseMatrix<int64_t> *& res, const DenseMatrix<int64_t> * lhs, const DenseMatrix<int64_t> * rhs, DCTX(ctx)) {
+        const auto nr1 = static_cast<int>(lhs->getNumRows());
+        const auto nc1 = static_cast<int>(lhs->getNumCols());
+        const auto nc2 = static_cast<int>(rhs->getNumCols());
+        assert((nc1 == static_cast<int>(rhs->getNumRows())) && "#cols of lhs and #rows of rhs must be the same");
+
+        if(res == nullptr)
+            res = DataObjectFactory::create<DenseMatrix<int64_t>>(nr1, nc2, false);
+
+        if(nr1 == 1 && nc2 == 1) // Vector-Vector
+            res->set(0, 0, cblas_ddot(nc1, lhs->getValues(), 1, rhs->getValues(),
+                static_cast<int>(rhs->getRowSkip())));
+        else if(nc2 == 1)        // Matrix-Vector
+            cblas_dgemv(CblasRowMajor, CblasNoTrans, nr1, nc1, 1, lhs->getValues(),
+            static_cast<int>(lhs->getRowSkip()), rhs->getValues(),static_cast<int>(rhs->getRowSkip()), 0,
+                res->getValues(), static_cast<int>(res->getRowSkip()));
+        else                     // Matrix-Matrix
+            cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, nr1, nc2, nc1,
+                    1, lhs->getValues(), static_cast<int>(lhs->getRowSkip()), rhs->getValues(),
+                    static_cast<int>(rhs->getRowSkip()), 0, res->getValues(), static_cast<int>(res->getRowSkip()));
+    }
+};
