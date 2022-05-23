@@ -19,6 +19,7 @@
 #include <runtime/local/context/DaphneContext.h>
 #include <runtime/local/datastructures/DataObjectFactory.h>
 #include <runtime/local/datastructures/DenseMatrix.h>
+#include <runtime/local/kernels/CastObj.h>
 
 #include <cblas.h>
 
@@ -109,21 +110,38 @@ struct MatMul<DenseMatrix<int64_t>, DenseMatrix<int64_t>, DenseMatrix<int64_t>> 
         const auto nr1 = static_cast<int>(lhs->getNumRows());
         const auto nc1 = static_cast<int>(lhs->getNumCols());
         const auto nc2 = static_cast<int>(rhs->getNumCols());
+        const auto nr2= static_cast<int>(rhs->getNumRows());
         assert((nc1 == static_cast<int>(rhs->getNumRows())) && "#cols of lhs and #rows of rhs must be the same");
+
+
+
+        DenseMatrix<double> *m1=DataObjectFactory::create<DenseMatrix<double>>(nr1, nc1, false);   //lhs cast to double
+        DenseMatrix<double> *m2=DataObjectFactory::create<DenseMatrix<double>>(nr2, nc2, false);   //rhs cast to double
+
+        castObj<DenseMatrix<double>, DenseMatrix<int64_t>>(m1, lhs, nullptr);
+        castObj<DenseMatrix<double>, DenseMatrix<int64_t>>(m2, rhs, nullptr);
+
+       
+
+
+        DenseMatrix<double> *doubleres= DataObjectFactory::create<DenseMatrix<double>>(nr1, nc2, false);
 
         if(res == nullptr)
             res = DataObjectFactory::create<DenseMatrix<int64_t>>(nr1, nc2, false);
 
         if(nr1 == 1 && nc2 == 1) // Vector-Vector
-            res->set(0, 0, cblas_ddot(nc1, lhs->getValues(), 1, rhs->getValues(),
-                static_cast<int>(rhs->getRowSkip())));
+            doubleres->set(0, 0, cblas_ddot(nc1, m1->getValues(), 1, m2->getValues(),
+                static_cast<int>(m2->getRowSkip())));
         else if(nc2 == 1)        // Matrix-Vector
-            cblas_dgemv(CblasRowMajor, CblasNoTrans, nr1, nc1, 1, lhs->getValues(),
-            static_cast<int>(lhs->getRowSkip()), rhs->getValues(),static_cast<int>(rhs->getRowSkip()), 0,
-                res->getValues(), static_cast<int>(res->getRowSkip()));
+            cblas_dgemv(CblasRowMajor, CblasNoTrans, nr1, nc1, 1, m1->getValues(),
+            static_cast<int>(m1->getRowSkip()), m2->getValues(),static_cast<int>(m2->getRowSkip()), 0,
+                doubleres->getValues(), static_cast<int>(doubleres->getRowSkip()));
         else                     // Matrix-Matrix
             cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, nr1, nc2, nc1,
-                    1, lhs->getValues(), static_cast<int>(lhs->getRowSkip()), rhs->getValues(),
-                    static_cast<int>(rhs->getRowSkip()), 0, res->getValues(), static_cast<int>(res->getRowSkip()));
+                    1, m1->getValues(), static_cast<int>(m1->getRowSkip()), m2->getValues(),
+                    static_cast<int>(m2->getRowSkip()), 0, doubleres->getValues(), static_cast<int>(doubleres->getRowSkip()));
+
+       castObj<DenseMatrix<int64_t>, DenseMatrix<double>>(res, doubleres, nullptr);
+        
     }
 };
