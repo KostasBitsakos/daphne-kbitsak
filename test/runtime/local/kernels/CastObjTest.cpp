@@ -43,7 +43,7 @@ TEMPLATE_PRODUCT_TEST_CASE("castObj, frame to matrix, single-column", TAG_KERNEL
     
     DTRes * res = nullptr;
     castObj<DTRes, Frame>(res, arg, nullptr);
-    
+
     REQUIRE(res->getNumRows() == numRows);
     REQUIRE(res->getNumCols() == 1);
     CHECK(*res == *c0Exp);

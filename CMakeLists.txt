@@ -74,6 +74,21 @@ set(BLA_VENDOR OpenBLAS)
 set(BLA_STATIC ON)
 find_package(BLAS)
 
+
+
+
+
+#----
+
+find_package(Eigen3 REQUIRED)
+
+link_directories(${Eigen_INCLUDE_DIRS})
+target_link_libraries(${PROJECT_NAME}
+   ${Eigen_LIBRARIES}
+   )
+
+#----
+
 # specify multiple paths in CMAKE_PREFIX_PATH separated by semicolon to add multiple include dirs
 # to make compile/exec in container plus finding includes in local IDE work, specify both, local third party sources
 # prefix and /usr/local e.g.: -DCMAKE_PREFIX_PATH="/usr/local;${PROJECT_SOURCE_DIR}/thirdparty/installed"

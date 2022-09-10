@@ -282,6 +282,7 @@ function cleanBuildDirs() {
       "${thirdpartyPath}/nlohmannjson_v"*".install.success" \
       "${thirdpartyPath}/openBlas_v"*".install.success" \
       "${thirdpartyPath}/llvm_v"*".install.success" \
+      "${thirdpartyPath}/eigen_v"*".install.success" \
       "${llvmCommitFilePath}")
     
     clean dirs files
@@ -304,6 +305,7 @@ function cleanAll() {
       "${thirdpartyPath}/openBlas_v"*".install.success" \
       "${thirdpartyPath}/openBlas_v"*".download.success" \
       "${thirdpartyPath}/llvm_v"*".install.success" \
+      "${thirdpartyPath}/eigen_v"*".install.success" \
       "${llvmCommitFilePath}")
 
     clean dirs files
@@ -342,6 +344,7 @@ openBlasVersion=0.3.19
 abslVersion=20211102.0
 grpcVersion=1.38.0
 nlohmannjsonVersion=3.10.5
+eigenVersion=3.3.2
 
 #******************************************************************************
 # Set some prefixes, paths and dirs
@@ -552,6 +555,38 @@ if ! is_dependency_installed "openBlas_v${openBlasVersion}"; then
     dependency_install_success "openBlas_v${openBlasVersion}"
 else
     daphne_msg "No need to build OpenBlas again."
+fi
+
+
+#------------------------------------------------------------------------------
+# Eigen, for eigen matrixes and eigen values operations
+#------------------------------------------------------------------------------
+
+eigenDirName="eigen-git-mirror-3.3.2"
+eigenZipName="${eigenDirName}.zip"
+eigenInstDirName=$installPrefix
+if ! is_dependency_downloaded "eigen_v${eigenVersion}"; then
+    daphne_msg "Get Eigen version ${eigenVersion}"
+    wget "https://github.com/eigenteam/eigen-git-mirror/archive/3.3.2.zip" \
+        -qO "${cacheDir}/${eigenZipName}"
+    unzip -q "$cacheDir/$eigenZipName" -d "$sourcePrefix"
+    dependency_download_success "eigen_v${eigenVersion}"
+fi
+if ! is_dependency_installed "eigen_v${eigenVersion}"; then
+    pwd
+    cd "$sourcePrefix/$eigenDirName"
+    cd "Eigen"
+    pwd
+    
+    echo this
+    make -j "$(nproc)"
+    echo that
+    make PREFIX="$eigenInstDirName" install
+    echo here
+    cd -
+    dependency_install_success "eigen_v${eigenVersion}"
+else
+    daphne_msg "No need to build Eigen again."
 fi
 
 

@@ -75,6 +75,7 @@ set(TEST_SOURCES
         runtime/local/kernels/DiagMatrixTest.cpp
         runtime/local/kernels/DiagVectorTest.cpp
         runtime/local/kernels/DNNPoolingTest.cpp
+        runtime/local/kernels/EigenOpTest.cpp
         runtime/local/kernels/EwBinaryMatTest.cpp
         runtime/local/kernels/EwBinaryObjScaTest.cpp
         runtime/local/kernels/EwBinaryScaTest.cpp

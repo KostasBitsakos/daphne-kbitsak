@@ -2052,6 +2052,39 @@
             [["CSRMatrix", "double"], "Structure"]
         ]
     },
+
+    {
+        "kernelTemplate": {
+            "header": "EigenOp.h",
+            "opName": "eigenOp",
+            "returnType": "void",
+            "templateParams": [
+                {
+                    "name": "DTRes",
+                    "isDataType": true
+                },
+                {
+                    "name": "DTArg",
+                    "isDataType": true
+                }
+            ],
+            "runtimeParams": [
+                {
+                    "type": "DTRes *&",
+                    "name": "res"
+                },
+                {
+                    "type": "const DTArg *",
+                    "name": "arg"
+                }
+            ]
+        },
+        "instantiations": [
+            [["DenseMatrix", "double"], ["DenseMatrix", "double"]]
+        ]
+    },
+
+
     {
         "kernelTemplate": {
             "header": "VectorizedPipeline.h",
