@@ -342,6 +342,7 @@ openBlasVersion=0.3.19
 abslVersion=20211102.0
 grpcVersion=1.38.0
 nlohmannjsonVersion=3.10.5
+eigenVersion=eigen
 
 #******************************************************************************
 # Set some prefixes, paths and dirs
@@ -671,7 +672,8 @@ fi
 
 
 # *****************************************************************************
-# Build DAPHNE target.
+# Build DAPHNE target. Add support for Eigen with  -DEigen3_DIR="$myPrefix/eigen/cmake/"
+
 # *****************************************************************************
 
 daphne_msg "Build Daphne"
@@ -679,10 +681,10 @@ daphne_msg "Build Daphne"
 cmake -S "$projectRoot" -B "$daphneBuildDir" -G Ninja $BUILD_CUDA $BUILD_DEBUG \
   -DCMAKE_PREFIX_PATH="$installPrefix" -DANTLR_VERSION="$antlrVersion"  \
   -DMLIR_DIR="$buildPrefix/$llvmName/lib/cmake/mlir/" \
-  -DLLVM_DIR="$buildPrefix/$llvmName/lib/cmake/llvm/"
+  -DLLVM_DIR="$buildPrefix/$llvmName/lib/cmake/llvm/" \
+  -DEigen3_DIR="$myPrefix/eigen/cmake/"
 
 cmake --build "$daphneBuildDir" --target "$target"
-
 build_ts_end=$(date +%s%N)
 daphne_msg "Successfully built Daphne://${target} (took $(printableTimestamp $((build_ts_end - build_ts_begin))))"
 

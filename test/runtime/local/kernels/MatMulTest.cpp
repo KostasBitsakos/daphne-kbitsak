@@ -29,6 +29,12 @@ template<class DT>
 void checkMatMul(const DT * lhs, const DT * rhs, const DT * exp) {
     DT * res = nullptr;
     matMul<DT, DT, DT>(res, lhs, rhs, nullptr);
+    std::cout<<"results MatMul \n" << std::endl;
+    std::cout << typeid(*res).name();
+    std::cout<<"\n" << std::endl;
+    std::cout << typeid(*exp).name();
+    std::cout<<"\n\n" << std::endl;
+
     CHECK(*res == *exp);
     DataObjectFactory::destroy(res);
 }

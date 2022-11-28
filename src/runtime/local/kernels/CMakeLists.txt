@@ -101,4 +101,8 @@ else()
     list(APPEND LIBS LLVMSupport)
 endif()
 
-target_link_libraries(AllKernels PUBLIC ${LIBS})
+
+
+# add support for Eigen library
+target_link_libraries(AllKernels PUBLIC ${LIBS} Eigen3::Eigen)
+

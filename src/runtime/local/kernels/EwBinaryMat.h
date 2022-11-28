@@ -27,6 +27,9 @@
 #include <cassert>
 #include <cstddef>
 
+// # include < Eigen / Core >
+// using namespace Eigen ;
+
 // ****************************************************************************
 // Struct for partial template specialization
 // ****************************************************************************

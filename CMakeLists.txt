@@ -137,6 +137,13 @@ if(USE_ARROW)
     message(STATUS "Arrow/Parquet enabled")
 endif()
 
+
+
+# support for Eigen library
+find_package (Eigen3 3.3.7 REQUIRED NO_MODULE)
+
+
+
 # *****************************************************************************
 # Project-specific include directories
 # *****************************************************************************

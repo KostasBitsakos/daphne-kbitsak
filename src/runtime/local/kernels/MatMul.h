@@ -20,6 +20,7 @@
 #include <runtime/local/datastructures/DataObjectFactory.h>
 #include <runtime/local/datastructures/DenseMatrix.h>
 
+
 #include <cblas.h>
 
 #include <cassert>
@@ -58,6 +59,8 @@ struct MatMul<DenseMatrix<float>, DenseMatrix<float>, DenseMatrix<float>> {
         const auto nc1 = static_cast<int>(lhs->getNumCols());
         const auto nc2 = static_cast<int>(rhs->getNumCols());
         assert((nc1 == static_cast<int>(rhs->getNumRows())) && "#cols of lhs and #rows of rhs must be the same");
+        
+
 
         if(res == nullptr)
             res = DataObjectFactory::create<DenseMatrix<float>>(nr1, nc2, false);
