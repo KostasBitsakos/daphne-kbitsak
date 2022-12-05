@@ -14,7 +14,7 @@
  *  limitations under the License.
  */
 
-#include "compiler/CompilerUtils.h"
+#include "compiler/utils/CompilerUtils.h"
 #include "ir/daphneir/Daphne.h"
 #include "ir/daphneir/Passes.h"
 
@@ -40,10 +40,14 @@ namespace
         if (auto defOp = value.getDefiningOp()) {
             if (defOp == op)
                 return true;
-#if 0
+#if 1
             // TODO This crashes if defOp and op are not in the same block.
             // At the same time, it does not seem to be strictly required.
-            if (defOp->isBeforeInBlock(op))
+//            if (defOp->isBeforeInBlock(op))
+            // Nevertheless, this modified line seems to be a good soft-filter;
+            // without that, the vectorization pass may take very long on
+            // programs with 100s of operations.
+            if (defOp->getBlock() == op->getBlock() && defOp->isBeforeInBlock(op))
                 // can't have results of `op` as inputs, as it is defined before
                 return false;
 #endif

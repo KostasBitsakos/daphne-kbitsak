@@ -66,6 +66,11 @@ void CompiledPipelineTask<DenseMatrix<VT>>::execute(uint32_t fid, uint32_t batch
 }
 
 template<typename VT>
+uint64_t CompiledPipelineTask<DenseMatrix<VT>>::getTaskSize() {
+    return _data._ru-_data._rl;
+}
+
+template<typename VT>
 void CompiledPipelineTask<DenseMatrix<VT>>::accumulateOutputs(std::vector<DenseMatrix<VT> *> &localResults,
         std::vector<DenseMatrix<VT> *> &localAddRes, uint64_t rowStart, uint64_t rowEnd) {
     //TODO: in-place computation via better compiled pipelines
@@ -74,9 +79,7 @@ void CompiledPipelineTask<DenseMatrix<VT>>::accumulateOutputs(std::vector<DenseM
         auto &result = (*_res[o]);
         switch (_data._combines[o]) {
             case VectorCombine::ROWS: {
-                rowStart -= _data._offset;
-                rowEnd -= _data._offset;
-                auto slice = result->sliceRow(rowStart, rowEnd);
+                auto slice = result->sliceRow(rowStart-_data._offset, rowEnd-_data._offset);
                 // TODO It's probably more efficient to memcpy than to get/set.
                 // But eventually, we don't want to copy at all.
                 for(auto i = 0u ; i < slice->getNumRows() ; ++i) {
@@ -174,8 +177,16 @@ void CompiledPipelineTask<CSRMatrix<VT>>::execute(uint32_t fid, uint32_t batchSi
     }
 }
 
+
+template<typename VT>
+uint64_t CompiledPipelineTask<CSRMatrix<VT>>::getTaskSize() {
+return _data._ru-_data._rl;
+}
+
+
 template class CompiledPipelineTask<DenseMatrix<double>>;
 template class CompiledPipelineTask<DenseMatrix<float>>;
+template class CompiledPipelineTask<DenseMatrix<int64_t>>;
 
 template class CompiledPipelineTask<CSRMatrix<double>>;
 template class CompiledPipelineTask<CSRMatrix<float>>;
