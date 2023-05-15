@@ -301,6 +301,7 @@ function cleanDeps {
         "${thirdpartyPath}/openBlas_v"*".install.success"
         "${thirdpartyPath}/llvm_v"*".install.success"
         "${thirdpartyPath}/arrow_v"*".install.success"
+        "${thirdpartyPath}libhdfs3"*".install.success"
         "${llvmCommitFilePath}")
 
     clean dirs files
@@ -316,6 +317,7 @@ function cleanCache {
         "${thirdpartyPath}/antlr_v"*".download.success"
         "${thirdpartyPath}/grpc_v"*".download.success"
         "${thirdpartyPath}/openBlas_v"*".download.success"
+        "${thirdpartyPath}/libhdfs3"*".donwload.success"
         "${thirdpartyPath}/arrow_v"*".download.success"
     )
 
@@ -389,6 +391,7 @@ function clean_param_check() {
 antlrVersion=4.9.2
 catch2Version=2.13.8
 openBlasVersion=0.3.19
+libhdfs3Version=2.10.0
 abslVersion=20211102.0
 grpcVersion=1.38.0
 nlohmannjsonVersion=3.10.5
@@ -628,6 +631,32 @@ if [ $WITH_DEPS -gt 0 ]; then
 
     #------------------------------------------------------------------------------
     # OpenBLAS (basic linear algebra subprograms)
+    #------------------------------------------------------------------------------
+    openBlasDirName="OpenBLAS-$openBlasVersion"
+    openBlasZipName="${openBlasDirName}.zip"
+    openBlasInstDirName=$installPrefix
+    if ! is_dependency_downloaded "openBlas_v${openBlasVersion}"; then
+        daphne_msg "Get OpenBlas version ${openBlasVersion}"
+        wget "https://github.com/xianyi/OpenBLAS/releases/download/v${openBlasVersion}/${openBlasZipName}" \
+            -qO "${cacheDir}/${openBlasZipName}"
+        unzip -q "$cacheDir/$openBlasZipName" -d "$sourcePrefix"
+        dependency_download_success "openBlas_v${openBlasVersion}"
+    fi
+    if ! is_dependency_installed "openBlas_v${openBlasVersion}"; then
+        cd "$sourcePrefix/$openBlasDirName"
+        make clean
+        # optimizes for multiple x86_64 architectures
+        make -j"$(nproc)" DYNAMIC_ARCH=1 TARGET=NEHALEM
+        make PREFIX="$openBlasInstDirName" install
+        cd - >/dev/null
+        dependency_install_success "openBlas_v${openBlasVersion}"
+    else
+        daphne_msg "No need to build OpenBlas again."
+    fi
+
+
+     #------------------------------------------------------------------------------
+    # libdfs3 (API for communication with hdfs)
     #------------------------------------------------------------------------------
     openBlasDirName="OpenBLAS-$openBlasVersion"
     openBlasZipName="${openBlasDirName}.zip"
