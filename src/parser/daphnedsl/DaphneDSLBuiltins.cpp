@@ -702,16 +702,46 @@ antlrcpp::Any DaphneDSLBuiltins::build(mlir::Location loc, const std::string & f
         ));
     }
     if(func == "ctable") {
-        checkNumArgsExact(func, numArgs, 2);
+        // The first two arguments are mandatory.
+        checkNumArgsMin(func, numArgs, 2);
         mlir::Value lhs = args[0];
         mlir::Value rhs = args[1];
-        // TODO Support all parameters of this operation again.
-//        mlir::Value weights = args[2];
-//        mlir::Value outHeight = utils.castSizeIf(args[3]);
-//        mlir::Value outWidth = utils.castSizeIf(args[4]);
-        return utils.retValWithInferedType(builder.create<CTableOp>(
-//                loc, utils.unknownType, lhs, rhs, weights, outHeight, outWidth
-                loc, utils.unknownType, lhs, rhs
+        // The remaining arguments are optional.
+        mlir::Value weight;
+        mlir::Value resNumRows;
+        mlir::Value resNumCols;
+        mlir::Value one = builder.create<ConstantOp>(loc, double(1));
+        mlir::Value minusOne = builder.create<ConstantOp>(loc, int64_t(-1));
+        switch(numArgs) {
+            case 2: { // none are given, all default
+                weight = one;
+                resNumRows = minusOne;
+                resNumCols = minusOne;
+                break;
+            }
+            case 3: { // weight is given; resNumRows and resNumCols default to -1 (unknown)
+                weight = args[2];
+                resNumRows = minusOne;
+                resNumCols = minusOne;
+                break;
+            }
+            case 4: { // resNumRows, resNumCols are given; weight defaults to 1.0
+                weight = one;
+                resNumRows = utils.castSI64If(args[2]);
+                resNumCols = utils.castSI64If(args[3]);
+                break;
+            }
+            case 5: { // weight, resNumRows, resNumCols are given
+                weight = args[2];
+                resNumRows = utils.castSI64If(args[3]);
+                resNumCols = utils.castSI64If(args[4]);
+                break;
+            }
+            default:
+                throw std::runtime_error("ctable(): unexpected number of arguments");
+        }
+        return static_cast<mlir::Value>(builder.create<CTableOp>(
+                loc, utils.unknownType, lhs, rhs, weight, resNumRows, resNumCols
         ));
     }
     if(func == "syrk") {
@@ -961,6 +991,50 @@ antlrcpp::Any DaphneDSLBuiltins::build(mlir::Location loc, const std::string & f
         mlir::Value filename = args[1];
         return builder.create<WriteOp>(loc, arg, filename);
     }
+    if(func == "receiveFromNumpy") {
+        checkNumArgsExact(func, numArgs, 5);
+        
+        mlir::Value upper = utils.castUI32If(args[0]);
+        mlir::Value lower = utils.castUI32If(args[1]);
+        mlir::Value rows = args[2];
+        mlir::Value cols = args[3];
+        mlir::Value valueType = args[4];
+
+        int64_t valueTypeCode = CompilerUtils::constantOrThrow<int64_t>(
+                valueType, "the value type code in ReceiveFromNumpyOp must be a constant"
+        );
+
+        // TODO Is there a utility for this mapping from value type code to MLIR type?
+        mlir::Type vt;
+        if(valueTypeCode == (int64_t)ValueTypeCode::F32)
+            vt = builder.getF32Type();
+        else if(valueTypeCode == (int64_t)ValueTypeCode::F64)
+            vt = builder.getF64Type();
+        else if(valueTypeCode == (int64_t)ValueTypeCode::SI8)
+            vt = builder.getIntegerType(8, true);
+        else if(valueTypeCode == (int64_t)ValueTypeCode::SI32)
+            vt = builder.getIntegerType(32, true);
+        else if(valueTypeCode == (int64_t)ValueTypeCode::SI64)
+            vt = builder.getIntegerType(64, true);
+        else if(valueTypeCode == (int64_t)ValueTypeCode::UI8)
+            vt = builder.getIntegerType(8, false);
+        else if(valueTypeCode == (int64_t)ValueTypeCode::UI32)
+            vt = builder.getIntegerType(32, false);
+        else if(valueTypeCode == (int64_t)ValueTypeCode::UI64)
+            vt = builder.getIntegerType(64, false);
+        else
+            throw std::runtime_error("invalid value type code");
+
+        return static_cast<mlir::Value>(builder.create<ReceiveFromNumpyOp>(
+                loc, utils.matrixOf(vt), upper, lower, rows, cols
+        ));
+    }
+    if(func == "saveDaphneLibResult") {
+        checkNumArgsExact(func, numArgs, 1);
+        mlir::Value arg = args[0];
+        return builder.create<SaveDaphneLibResultOp>(loc, arg);
+    }
+
     // --------------------------------------------------------------------
     // Low-level
     // --------------------------------------------------------------------

@@ -28,11 +28,16 @@ Newer versions should work as well, older versions might work as well.
 
 ##### Operating system
 
-| OS        | distribution/version known to work (*) | Comment                                                                 |
-|-----------|----------------------------------------|-------------------------------------------------------------------------|
-| GNU/Linux | Manjaro                                | Last checked in January 2023                                            ||
-| GNU/Linux | Ubuntu 20.04 - 22.10                   | All versions in that range work. 20.04 needs CMake installed from Snap. |
-| GNU/Linux | Ubuntu 18.04                           | Used with Intel PAC D5005 FPGA, custom toolchain needed                 |
+| OS         | distribution/version known to work (*) | Comment                                                                    |
+|------------|----------------------------------------|----------------------------------------------------------------------------|
+| GNU/Linux  | Manjaro                                | Last checked in January 2023                                               ||
+| GNU/Linux  | Ubuntu 20.04 - 22.10                   | All versions in that range work. 20.04 needs CMake installed from Snap.    |
+| GNU/Linux  | Ubuntu 18.04                           | Used with Intel PAC D5005 FPGA, custom toolchain needed                    |
+| MS Windows | 10 Build 19041, 11                     | Should work in Ubuntu WSL, using the provided Docker images is recommended |
+
+##### Windows
+Installing WSL and Docker should be straight forward using the documentation proveded by [Microsoft](https://learn.microsoft.com/en-us/windows/wsl/). On an installed WSL container
+launching DAPHNE via Docker (see below) should work the same way as in a native installation.
 
 ##### Software
 
@@ -43,11 +48,13 @@ Newer versions should work as well, older versions might work as well.
 | cmake                                | 3.17                      | On Ubuntu 20.04, install by `sudo snap install cmake --classic` to fulfill the version requirement; `apt` provides only version 3.16.3. |
 | git                                  | 2.25.1                    |                                                                                                                                         |
 | libssl-dev                           | 1.1.1                     | Dependency introduced while optimizing grpc build (which used to build ssl unnecessarily)                                               |
+| libpfm4-dev                          | 4.10                      | This dependency is needed for profiling support [DAPHNE-#479]                                                                           |
 | lld                                  | 10.0.0                    |                                                                                                                                         |
 | ninja                                | 1.10.0                    |                                                                                                                                         |
 | pkg-config                           | 0.29.1                    |                                                                                                                                         |
 | python3                              | 3.8.5                     |                                                                                                                                         |
 | numpy                                | 1.19.5                    |                                                                                                                                         |
+| pandas                               | 0.25.3                    |                                                                                                                                         |
 | java (e.g. openjdk)                  | 11 (1.7 should be fine)   |                                                                                                                                         |
 | gfortran                             | 9.3.0                     |                                                                                                                                         |
 | uuid-dev                             |                           |                                                                                                                                         |
@@ -117,6 +124,23 @@ For convenience, you can call the following to remove them all.
 
 See [this page](/doc/development/BuildingDaphne.md) for more information.
 
+### Setting up the environment
+As DAPHNE uses shared libraries, these need to be found by the operating system's loader to link them at runtime. 
+Since most DAPHNE setups will not land in one of the standard directories (e.g., /usr/local/lib), environment variables 
+are a convenient way set everything up without interfering with system installations (where you might not even have 
+administrative privileges to do so).
+
+``` 
+# from your cloned DAPHNE repo or your otherwise extracted sources/binaries: 
+export DAPHNE_ROOT=$PWD 
+export LD_LIBRARY_PATH=$DAPHNE_ROOT/lib:$DAPHNE_ROOT/thirdparty/installed/lib:$LD_LIBRARY_PATH
+# optinally you can add the location of the DAPHNE executable to your PATH:
+export PATH=$DAPHNE_ROOT:bin:$PATH
+```
+
+If you're running/compiling DAPHNE from a container you'll most probably **_*_**not**_*_** need to set these environment
+variables (unless you have reason to customize your setup - then it is assumed that you know what you are doing)
+
 ### Running the Tests
 
 ```bash
@@ -148,11 +172,16 @@ for accelerated ops (see [software requirements](#software) above and [build ins
 For further flags that can be set at runtime to activate additional functionality, run ``daphne --help``.
 
 ### Building and running with containers [Alternative path for building and running the system and the tests]
-If one wants to avoid installing dependencies and avoid conflicting with his/her existing installed libraries, one may use containers.
-- you need to install Docker or Singularity: Docker version 20.10.2 or higher | Singularity version 3.7.0-1.el7 or higher are sufficient
+If one wants to avoid installing dependencies and avoid conflicting with his/her existing installed libraries, one may 
+use containers.
+- you need to install Docker or Singularity: Docker version 20.10.2 or higher | Singularity version 3.7.0-1.el7 or 
+higher are sufficient
 - you can use the provided docker files and scripts to create and run DAPHNE.
 
-The following creates two images (daphneeu/daphne-dev; daphneeu/daphne-dev-interactive):
+**A full description on containers is available in the [containers](containers) subdirectory.**
+
+
+The following recreates all images provided by [daphneeu](https://hub.docker.com/u/daphneeu) 
 ```bash
 cd container
 ./build-containers.sh
@@ -161,26 +190,12 @@ cd container
 Running in an interactive container can be done with this run script, which takes care of mounting your 
 current directory and handling permissions:
 ```bash
-cd container
-./run-daphne-dev-interactive.sh
+# please customize this script first
+./containers/run-docker-example.sh
 ```
- - you can also use Singularity containers instead of Docker as follows:
-  ```bash
-#one can also use [Singularity python](https://singularityhub.github.io/singularity-cli/)
-#to convert the provided Dockerfile into Singularity recipe 
-singularity build <ImageName.sif> docker://daphneeu/daphne-dev
-
-# This command will place you in a shell in the container, your home directory and /tmp mounted. 
-singularity shell <ImageName.sif>
-Singularity> cd <your/daphne/directory>
-Singularity> ./build.sh #or ./test.sh
-```
-- Because the container instance works on the same folder, if one already built the system outside the container, it is recommended to clean all build files to avoid conflicts.
-- One may also do the commits from within the containers as normal (this holds for Singularity. With Docker images, your home
-directory and therefore your .gitconfig is usually not available).
-
-For more about building and running with containers, refer to the directory `containers/` and its [README.md](/containers/README.md). 
-For documentation of using containers in conjunction with our cluster deployment scripts, refer to [Deploy.md](/doc/Deploy.md).
+For more about building and running with containers, refer (once again) to the directory `containers/` and its 
+[README.md](/containers/README.md).
+For documentation about using containers in conjunction with our cluster deployment scripts, refer to [Deploy.md](/doc/Deploy.md).
 
 ### Exploring the Source Code
 
@@ -190,13 +205,13 @@ On the top-level, there are the following directories:
 
 - `bin`: after compilation, generated binaries will be placed here (e.g., daphne)
 - `build`: temporary build output
-- `containers`: scripts and configuration files to get/build/run with Docker or Singularity containers
-- `deploy`: shell scripts to ease deployment in SLURM clusters
-- `doc`: documentation written in markdown (e.g., what you are reading at the moment)
+- [`containers`:](containers) scripts and configuration files to get/build/run with Docker or Singularity containers
+- [`deploy`:](deploy) shell scripts to ease deployment in SLURM clusters
+- [`doc`:](doc) documentation written in markdown (e.g., what you are reading at the moment)
 - `lib`: after compilation, generated library files will be placed here (e.g., libAllKernels.so, libCUDAKernels.so, ...)
-- `scripts`: a collection of algorithms and examples written in DAPHNE's own domain specific language ([DaphneDSL](DaphneDSLLanguageRef.md))
-- `src`: the actual source code, subdivided into the individual components of the system
-- `test`: test cases
+- [`scripts`:](scripts) a collection of algorithms and examples written in DAPHNE's own domain specific language ([DaphneDSL](DaphneDSLLanguageRef.md))
+- [`src`:](src) the actual source code, subdivided into the individual components of the system
+- [`test`:](test) test cases
 - `thirdparty`: required external software
 
 ### What Next?

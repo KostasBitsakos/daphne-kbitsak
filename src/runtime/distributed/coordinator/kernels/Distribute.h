@@ -19,10 +19,17 @@
 #include <runtime/local/context/DistributedContext.h>
 #include <runtime/local/datastructures/DataObjectFactory.h>
 #include <runtime/local/datastructures/DenseMatrix.h>
+#include <runtime/distributed/coordinator/scheduling/LoadPartitioningDistributed.h>
 
 #include <runtime/local/datastructures/AllocationDescriptorGRPC.h>
 #include <runtime/distributed/proto/ProtoDataConverter.h>
 #include <runtime/distributed/proto/DistributedGRPCCaller.h>
+#include <runtime/distributed/worker/WorkerImpl.h>
+
+#ifdef USE_MPI
+    #include <runtime/distributed/worker/MPISerializer.h>
+    #include <runtime/distributed/worker/MPIHelper.h>
+#endif 
 
 #include <cassert>
 #include <cstddef>
@@ -51,6 +58,64 @@ void distribute(DT *mat, DCTX(dctx))
 // (Partial) template specializations for different distributed backends
 // ****************************************************************************
 
+#ifdef USE_MPI
+// ----------------------------------------------------------------------------
+// MPI
+// ----------------------------------------------------------------------------
+template<class DT>
+struct Distribute<ALLOCATION_TYPE::DIST_MPI, DT>
+{
+    static void apply(DT *mat, DCTX(dctx)) {        
+        void *dataToSend;
+        std::vector<int> targetGroup;  
+
+        LoadPartitioningDistributed<DT, AllocationDescriptorMPI> partioner(DistributionSchema::DISTRIBUTE, mat, dctx);        
+        
+        while (partioner.HasNextChunk()){
+            DataPlacement *dp = partioner.GetNextChunk();
+            auto rank = dynamic_cast<AllocationDescriptorMPI&>(*(dp->allocation)).getRank();
+            
+            //std::cout<<"rank "<< rank+1<< " will work on rows from " << startRow << " to "  << startRow+rowCount<<std::endl;
+            if (dynamic_cast<AllocationDescriptorMPI&>(*(dp->allocation)).getDistributedData().isPlacedAtWorker)
+            {
+               // std::cout<<"worker already has the data"<<std::endl;
+               auto data = dynamic_cast<AllocationDescriptorMPI&>(*(dp->allocation)).getDistributedData();
+               MPIHelper::sendObjectIdentifier(data.identifier, rank);
+               //std::cout<<"Identifier ( "<<data.identifier<< " ) has been send to " <<(rank+1)<<std::endl;
+               continue;
+            }
+            size_t messageLength;
+            MPISerializer::serializeStructure<DT>(&dataToSend, mat ,false, &messageLength, dp->range->r_start, dp->range->r_len, dp->range->c_start, dp->range->c_len);
+            MPIHelper::distributeData(messageLength, dataToSend,rank);
+            targetGroup.push_back(rank);
+            free(dataToSend);  
+        }
+        for(size_t i=0;i<targetGroup.size();i++)
+        {
+            int rank=targetGroup.at(i);
+            //std::cout<<"From distribute waiting for ack ("+std::to_string(rank)+")" << std::endl;
+            if (rank==COORDINATOR)
+            {
+
+               // std::cout<<"coordinator doe not need ack from itself" << std::endl;
+                continue;
+            }
+            WorkerImpl::StoredInfo dataAcknowledgement = MPIHelper::getDataAcknowledgement(&rank);
+            std::string address = std::to_string(rank);
+            DataPlacement *dp = mat->getMetaDataObject()->getDataPlacementByLocation(address);
+            auto data = dynamic_cast<AllocationDescriptorMPI&>(*(dp->allocation)).getDistributedData();
+            data.identifier = dataAcknowledgement.identifier ;
+            data.numRows = dataAcknowledgement.numRows;
+            data.numCols = dataAcknowledgement.numCols;
+            data.isPlacedAtWorker = true;
+            //std::cout<<"acknowledgement received with distribute identifier " << data.identifier<<std::endl;
+            dynamic_cast<AllocationDescriptorMPI&>(*(dp->allocation)).updateDistributedData(data);
+        }
+
+    }
+};
+#endif
+
 // ----------------------------------------------------------------------------
 // GRPC
 // ----------------------------------------------------------------------------
@@ -64,48 +129,13 @@ struct Distribute<ALLOCATION_TYPE::DIST_GRPC, DT>
         }; 
         
         DistributedGRPCCaller<StoredInfo, distributed::Data, distributed::StoredData> caller;
-        
-        auto ctx = DistributedContext::get(dctx);
-        auto workers = ctx->getWorkers();
-    
+            
         assert(mat != nullptr);
-
-        auto r = 0ul;
-        for (auto workerIx = 0ul; workerIx < workers.size() && r < mat->getNumRows(); workerIx++) {            
-            auto workerAddr = workers.at(workerIx);                      
-
-            auto k = mat->getNumRows() / workers.size();
-            auto m = mat->getNumRows() % workers.size();            
-
-            Range range;
-            range.r_start = (workerIx * k) + std::min(workerIx, m);
-            range.r_len = ((workerIx + 1) * k + std::min(workerIx + 1, m)) - range.r_start;
-            range.c_start = 0;
-            range.c_len = mat->getNumCols();
-                        
-            // If dp already exists simply
-            // update range (in case we have a different one) and distribute data
-            DataPlacement *dp;
-            if ((dp = mat->getMetaDataObject().getDataPlacementByLocation(workerAddr))) {                
-                mat->getMetaDataObject().updateRangeDataPlacementByID(dp->dp_id, &range);     
-                auto data = dynamic_cast<AllocationDescriptorGRPC&>(*(dp->allocation)).getDistributedData();
-                // TODO Currently we do not support distributing/splitting 
-                // by columns. When we do, this should be changed (e.g. Index(0, workerIx))
-                data.ix = DistributedIndex(workerIx, 0);
-                dynamic_cast<AllocationDescriptorGRPC&>(*(dp->allocation)).updateDistributedData(data);
-            }
-            else { // Else, create new object metadata entry
-                DistributedData data;
-                // TODO Currently we do not support distributing/splitting 
-                // by columns. When we do, this should be changed (e.g. Index(0, workerIx))
-                data.ix = DistributedIndex(workerIx, 0);
-                AllocationDescriptorGRPC allocationDescriptor(
-                                            dctx,
-                                            workerAddr,
-                                            data);
-                dp = mat->getMetaDataObject().addDataPlacement(&allocationDescriptor, &range);                    
-            }
-            // keep track of processed rows
+        
+        LoadPartitioningDistributed<DT, AllocationDescriptorGRPC> partioner(DistributionSchema::DISTRIBUTE, mat, dctx);
+        
+        while (partioner.HasNextChunk()){ 
+            auto dp = partioner.GetNextChunk();
             // Skip if already placed at workers
             if (dynamic_cast<AllocationDescriptorGRPC&>(*(dp->allocation)).getDistributedData().isPlacedAtWorker)
                 continue;
@@ -119,14 +149,13 @@ struct Distribute<ALLOCATION_TYPE::DIST_GRPC, DT>
                 throw std::runtime_error("Distribute grpc only supports DenseMatrix<double> for now");
             }
             ProtoDataConverter<DenseMatrix<double>>::convertToProto(denseMat, protoMsg.mutable_matrix(), 
-                                                    range.r_start,
-                                                    range.r_start + range.r_len,
-                                                    range.c_start,
-                                                    range.c_start + range.c_len);
+                                                    dp->range->r_start,
+                                                    dp->range->r_start + dp->range->r_len,
+                                                    dp->range->c_start,
+                                                    dp->range->c_start + dp->range->c_len);
 
             StoredInfo storedInfo({dp->dp_id}); 
             caller.asyncStoreCall(dynamic_cast<AllocationDescriptorGRPC&>(*(dp->allocation)).getLocation(), storedInfo, protoMsg);
-            r = (workerIx + 1) * k + std::min(workerIx + 1, m);
         }                
                        
 
@@ -137,7 +166,7 @@ struct Distribute<ALLOCATION_TYPE::DIST_GRPC, DT>
             
             auto storedData = response.result;            
 
-            auto dp = mat->getMetaDataObject().getDataPlacementByID(dp_id);
+            auto dp = mat->getMetaDataObject()->getDataPlacementByID(dp_id);
             
             auto data = dynamic_cast<AllocationDescriptorGRPC&>(*(dp->allocation)).getDistributedData();
             data.identifier = storedData.identifier();

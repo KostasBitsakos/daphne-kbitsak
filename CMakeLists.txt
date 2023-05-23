@@ -23,6 +23,7 @@ project(daphne-prototype LANGUAGES CXX C)
 set(CMAKE_BUILD_WITH_INSTALL_NAME_DIR ON)
 set(CMAKE_CXX_STANDARD 17 CACHE STRING "C++ standard to conform to")
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_CXX_FLAGS_DEBUG="${CMAKE_CXX_FLAGS_DEBUG} -O0")
 # silence a warning about DEPFILE path transformations (used in LLVM)
 cmake_policy(SET CMP0116 OLD)
@@ -74,29 +75,24 @@ set(BLA_VENDOR OpenBLAS)
 set(BLA_STATIC ON)
 find_package(BLAS)
 
-SET(ANTLR_VERSION 4.9.2 CACHE STRING "The version of ANTLR (parsing library).")
-message(STATUS "ANTLR_VERSION: ${ANTLR_VERSION}")
-
 # specify multiple paths in CMAKE_PREFIX_PATH separated by semicolon to add multiple include dirs
 # to make compile/exec in container plus finding includes in local IDE work, specify both, local third party sources
 # prefix and /usr/local e.g.: -DCMAKE_PREFIX_PATH="/usr/local;${PROJECT_SOURCE_DIR}/thirdparty/installed"
 foreach(path ${CMAKE_PREFIX_PATH})
     message(STATUS "CMAKE_PREFIX_PATH:  ${path}")
     include_directories(${path}/include)
-    file(GLOB ANTLR_JAR_FOUND ${path}/share/antlr4/antlr-${ANTLR_VERSION}-complete.jar)
-    if(DEFINED ANTLR_JAR_FOUND)
-        message(STATUS "ANTLR_JAR_FOUND: ${ANTLR_JAR_FOUND}")
-        set(ANTLR4_JAR_LOCATION ${ANTLR_JAR_FOUND} CACHE STRING "default value for ANTLR jar file")
-    endif()
 endforeach(path)
-
-# fallback if not using CMAKE_PREFIX_PATH (e.g., system/container install)
-if(NOT DEFINED CMAKE_PREFIX_PATH)
-    set(ANTLR4_JAR_LOCATION /usr/local/share/antlr4/antlr-${ANTLR_VERSION}-complete.jar CACHE STRING "default value for ANTLR jar file")
-endif()
 
 # check <package>_ROOT env var
 cmake_policy(SET CMP0074 NEW)
+
+###### MPI
+if(USE_MPI)
+    find_package(MPI REQUIRED)
+    add_definitions(-DUSE_MPI)
+    include_directories(${MPI_INCLUDE_PATH})
+endif()    
+##########
 
 option(USE_CUDA "Whether to activate compilation of CUDA features" OFF)
 include(CheckLanguage)
@@ -133,6 +129,9 @@ endif()
 find_package(Arrow REQUIRED)
 find_package(Parquet REQUIRED)
 
+# support for Eigen library
+find_package (Eigen3 REQUIRED)
+
 option(USE_FPGAOPENCL "Whether to activate compilation of FPGA OpenCL features" OFF)
 if(USE_FPGAOPENCL)
 	if(NOT DEFINED ENV{QUARTUSDIR})
@@ -159,6 +158,8 @@ include_directories(${PROJECT_BINARY_DIR}/src)
 
 add_subdirectory(src/ir/daphneir)
 add_subdirectory(src/api/cli)
+add_subdirectory(src/api/daphnelib)
+add_subdirectory(src/api/internal)
 add_subdirectory(src/compiler/execution)
 add_subdirectory(src/compiler/explanation)
 add_subdirectory(src/compiler/inference)
