@@ -301,9 +301,8 @@ function cleanDeps {
         "${thirdpartyPath}/openBlas_v"*".install.success"
         "${thirdpartyPath}/llvm_v"*".install.success"
         "${thirdpartyPath}/arrow_v"*".install.success"
-        "${thirdpartyPath}libhdfs3"*".install.success"
-        "${llvmCommitFilePath}")
-
+        "${thirdpartyPath}libhdfs3_v"*".install.success"
+        "${llvmCommitFilePath}")  
     clean dirs files
 }
 
@@ -317,7 +316,7 @@ function cleanCache {
         "${thirdpartyPath}/antlr_v"*".download.success"
         "${thirdpartyPath}/grpc_v"*".download.success"
         "${thirdpartyPath}/openBlas_v"*".download.success"
-        "${thirdpartyPath}/libhdfs3"*".donwload.success"
+        "${thirdpartyPath}/libhdfs3_v"*".donwload.success"
         "${thirdpartyPath}/arrow_v"*".download.success"
     )
 
@@ -777,6 +776,33 @@ if [ $WITH_DEPS -gt 0 ]; then
     else
         daphne_msg "No need to build Arrow again."
     fi
+
+     #------------------------------------------------------------------------------
+    # libhdfs3
+    #------------------------------------------------------------------------------
+
+#     if ! is_dependency_installed "libhdfs3_v${libhdfs3Version}"; then
+#     daphne_msg "Get libhdfs3 version ${libhdfs3Version}"
+#     cd "${thirdpartyPath}"
+    
+#     if [ ! -d "${libhdfs3DirName}" ]; then
+#         daphne_msg "Download libhdfs3 version ${libhdfs3Version}"
+#         wget "https://example.com/libhdfs3/${libhdfs3ZipName}" -qO "${cacheDir}/${libhdfs3ZipName}"
+#         unzip -q "${cacheDir}/${libhdfs3ZipName}"
+#     fi
+    
+#     cd "${libhdfs3DirName}"
+    
+#     daphne_msg "Build and install libhdfs3 version ${libhdfs3Version}"
+#     ./configure --prefix="${installPrefix}"
+#     make
+#     make install
+    
+#     dependency_install_success "libhdfs3_v${libhdfs3Version}"
+# else
+#     daphne_msg "No need to build libhdfs3 again."
+# fi
+
 
     #------------------------------------------------------------------------------
     # Build MLIR

@@ -21,6 +21,7 @@ LD_LIBRARY_PATH=/daphne/lib:$LD_LIBRARY_PATH
 PATH=/daphne/bin:$PATH
 
 # shellcheck disable=SC2046
+# added "-p 50070:50070" in order to be able to see it on the browser
 docker run --hostname daphne-container -it --rm -w "$DAPHNE_ROOT" \
- -e TERM=screen-256color -e PATH -e LD_LIBRARY_PATH -e USER=$(id -n -u) -e UID=$(id -u) -e GID=$(id -g) \
+ -e TERM=screen-256color -e PATH -e LD_LIBRARY_PATH -e USER=$(id -n -u) -e UID=$(id -u) -e GID=$(id -g) -p 50070:50070,8088:8088 \
  -v "$DAPHNE_ROOT:$DAPHNE_ROOT" $DOCKER_IMAGE

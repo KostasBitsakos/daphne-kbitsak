@@ -27,3 +27,6 @@ tmpdaphne.daphne
 # release scripts output
 /artifacts
 
+#containers folder
+/containers
+
