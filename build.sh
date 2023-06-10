@@ -780,30 +780,44 @@ if [ $WITH_DEPS -gt 0 ]; then
      #------------------------------------------------------------------------------
     # libhdfs3
     #------------------------------------------------------------------------------
+    libhdfs3ArtifactFileName="libhdfs3-2.10.0.zip"
+    libhdfs3DirName="libhdfs3-2.10.0"
 
-#     if ! is_dependency_installed "libhdfs3_v${libhdfs3Version}"; then
-#     daphne_msg "Get libhdfs3 version ${libhdfs3Version}"
-#     cd "${thirdpartyPath}"
-    
-#     if [ ! -d "${libhdfs3DirName}" ]; then
-#         daphne_msg "Download libhdfs3 version ${libhdfs3Version}"
-#         wget "https://example.com/libhdfs3/${libhdfs3ZipName}" -qO "${cacheDir}/${libhdfs3ZipName}"
-#         unzip -q "${cacheDir}/${libhdfs3ZipName}"
-#     fi
-    
-#     cd "${libhdfs3DirName}"
-    
-#     daphne_msg "Build and install libhdfs3 version ${libhdfs3Version}"
-#     ./configure --prefix="${installPrefix}"
-#     make
-#     make install
-    
-#     dependency_install_success "libhdfs3_v${libhdfs3Version}"
-# else
-#     daphne_msg "No need to build libhdfs3 again."
-# fi
+    # # Check if the dependency is already downloaded
+    if   is_dependency_downloaded "${sourcePrefix:?}/${libhdfs3DirName}" ]; then
+    # # Remove any existing directory
+        rm -rf "${sourcePrefix:?}/${libhdfs3DirName}"
+    # # Download the libhdfs3 artifact
+        wget "https://github.com/ompcloud/libhdfs3/archive/refs/heads/master.zip" -qP "$cacheDir" -O "${cacheDir}/${libhdfs3ArtifactFileName}"
 
+    # # Extract the artifact
+        unzip "$cacheDir/$libhdfs3ArtifactFileName" -d "$sourcePrefix/$libhdfs3DirName"
+        cd ${sourcePrefix}/${libhdfs3DirName}
+        echo pwd
+        dependency_download_success "libhdfs3_v${libhdfs3Version}"
+    fi
 
+    # # Check if the dependency is already installed
+    # if ! is_dependency_installed "libhdfs3_v${libhdfs3Version}"; then
+    # # Build and install libhdfs3
+    # # cmake -G Ninja -S "${sourcePrefix}/${libhdfs3DirName}" -B "${buildPrefix}/${libhdfs3DirName}" \
+    # #     -DCMAKE_INSTALL_PREFIX="${installPrefix}"
+    # # cmake --build "${buildPrefix}/${libhdfs3DirName}" --target install
+    # echo $pwd
+    #     # mkdir build
+    #     # cd build
+    #     # ../bootstrap
+    #     # make
+    #     # make install
+    #     echo "We are heeeere"
+
+    #     pwd
+    #     dependency_install_success "libhdfs3_v${libhdfs3Version}"
+    # else
+    # daphne_msg "No need to build libhdfs3 again."
+    # fi
+
+    echo "We are oouuuut"
     #------------------------------------------------------------------------------
     # Build MLIR
     #------------------------------------------------------------------------------
