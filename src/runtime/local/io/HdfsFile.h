@@ -19,14 +19,16 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <hdfs.h>
 
 struct File {
-  FILE *identifier;
+  hdfsFS fs;
+  hdfsFile identifier;
   unsigned long pos;
   unsigned long read;
 };
 
-inline struct File *openMemFile(FILE *ident){
+inline struct File *openMemFileHDFS(hdfsFile ident) {
   struct File *f = (struct File *)malloc(sizeof(struct File));
 
   f->identifier = ident;
@@ -35,10 +37,24 @@ inline struct File *openMemFile(FILE *ident){
   return f;
 }
 
-inline struct File *openFile(const char *filename) {
+inline struct File *openFileHDFS(const char *filename, hdfsFS fs) {
   struct File *f = (struct File *)malloc(sizeof(struct File));
 
-  f->identifier = fopen(filename, "r");
+  hdfsFile file = hdfsOpenFile(fs, filename, O_RDONLY, 0, 0, 0);
+  f->identifier = file;
+  f->pos = 0;
+
+  if (file == NULL)
+    return NULL;
+  return f;
+}
+
+
+inline struct File *openFileForWriteHDFS(const char *filename) {
+  struct File *f = (struct File *)malloc(sizeof(struct File));
+
+  f->fs = hdfsConnect(NULL, 0);
+  f->identifier = hdfsOpenFile(f->fs, filename, O_WRONLY | O_CREAT, 0, 0, 0);
   f->pos = 0;
 
   if (f->identifier == NULL)
@@ -46,27 +62,25 @@ inline struct File *openFile(const char *filename) {
   return f;
 }
 
-inline struct File *openFileForWrite(const char *filename) {
-  struct File *f = (struct File *)malloc(sizeof(struct File));
-
-  f->identifier = fopen(filename, "w+");
-  f->pos = 0;
-  
-  if (f->identifier == NULL)
-    return NULL;
-  return f;
+inline void closeFileHDFS(File *f) {
+  hdfsCloseFile(f->fs, f->identifier);
+  hdfsDisconnect(f->fs);
 }
 
-inline void closeFile(File *f) { fclose(f->identifier); }
-
-inline char *getLine(File *f) {
+inline char *getLineHDFS(File *f) {
   char *line = NULL;
-  size_t len = 0;
+  int bufferSize = 1024;  // Adjust buffer size as per your requirements
 
-  f->read = getline(&line, &len, f->identifier);
-  f->pos += f->read;
+  char buffer[bufferSize];
+  int bytesRead = hdfsRead(f->fs, f->identifier, buffer, bufferSize);
+  if (bytesRead > 0) {
+    line = (char *)malloc(bytesRead + 1);
+    memcpy(line, buffer, bytesRead);
+    line[bytesRead] = '\0';
+    f->read = bytesRead;
+    f->pos += bytesRead;
+  }
 
   return line;
 }
-
 #endif

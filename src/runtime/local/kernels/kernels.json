@@ -1683,25 +1683,6 @@
     },
     {
         "kernelTemplate": {
-            "header": "GetColIdx.h",
-            "opName": "getColIdx",
-            "returnType": "size_t",
-            "templateParams": [],
-            "runtimeParams": [
-                {
-                    "type": "const Frame *",
-                    "name": "arg"
-                },
-                {
-                    "type": "const char *",
-                    "name": "colName"
-                }
-            ]
-        },
-        "instantiations": [[]]
-    },
-    {
-        "kernelTemplate": {
             "header": "Write.h",
             "opName": "write",
             "returnType": "void",

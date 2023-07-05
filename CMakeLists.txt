@@ -133,6 +133,7 @@ endif()
 find_package(Arrow REQUIRED)
 find_package(Parquet REQUIRED)
 
+
 option(USE_FPGAOPENCL "Whether to activate compilation of FPGA OpenCL features" OFF)
 if(USE_FPGAOPENCL)
 	if(NOT DEFINED ENV{QUARTUSDIR})
@@ -172,6 +173,10 @@ add_subdirectory(src/runtime/distributed/worker)
 add_subdirectory(src/runtime/local/datastructures)
 add_subdirectory(src/runtime/local/io)
 add_subdirectory(src/runtime/local/kernels)
+#Include the libhdfs3 library and its dependencies
+include_directories("/home/kostas/workspace/container-kbitsak/daphne-kbitsak/thirdparty/sources/libhdfs3-2.10.0/libhdfs3-master/src/client")
+include_directories("/home/kostas/workspace/container-kbitsak/daphne-kbitsak/thirdparty/sources/libhdfs3-2.10.0/libhdfs3-master/build/src")
+
 if(USE_FPGAOPENCL)
     add_subdirectory(src/runtime/local/kernels/FPGAOPENCL)
 endif() 

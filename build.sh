@@ -861,38 +861,45 @@ fi
     libhdfs3DirName="libhdfs3-2.10.0"
 
     # # Check if the dependency is already downloaded
-    if   is_dependency_downloaded "${sourcePrefix:?}/${libhdfs3DirName}" ]; then
-    # # Remove any existing directory
-        rm -rf "${sourcePrefix:?}/${libhdfs3DirName}"
-    # # Download the libhdfs3 artifact
-        wget "https://github.com/ompcloud/libhdfs3/archive/refs/heads/master.zip" -qP "$cacheDir" -O "${cacheDir}/${libhdfs3ArtifactFileName}"
+    echo "${sourcePrefix}/${libhdfs3DirName}"
+    # if   ! is_dependency_downloaded "libhdfs3_v${libhdfs3Version}" ; then
+    # # # Remove any existing directory
+    # echo "here again"
+    #     rm -rf "${sourcePrefix:?}/${libhdfs3DirName}"
+    # # # Download the libhdfs3 artifact
+    #     #wget "https://github.com/ompcloud/libhdfs3/archive/refs/heads/master.zip" -qP "$cacheDir" -O "${cacheDir}/${libhdfs3ArtifactFileName}"
 
-    # # Extract the artifact
-        unzip "$cacheDir/$libhdfs3ArtifactFileName" -d "$sourcePrefix/$libhdfs3DirName"
+    # # # Extract the artifact
+       # unzip "$cacheDir/$libhdfs3ArtifactFileName" -d "$sourcePrefix/$libhdfs3DirName"
         cd ${sourcePrefix}/${libhdfs3DirName}
-        echo pwd
-        dependency_download_success "libhdfs3_v${libhdfs3Version}"
-    fi
+    #     echo pwd
+    #     dependency_download_success "libhdfs3_v${libhdfs3Version}"
+    # fi
 
     # # Check if the dependency is already installed
-    # if ! is_dependency_installed "libhdfs3_v${libhdfs3Version}"; then
+    if ! is_dependency_installed "libhdfs3_v${libhdfs3Version}"; then
     # # Build and install libhdfs3
     # # cmake -G Ninja -S "${sourcePrefix}/${libhdfs3DirName}" -B "${buildPrefix}/${libhdfs3DirName}" \
     # #     -DCMAKE_INSTALL_PREFIX="${installPrefix}"
     # # cmake --build "${buildPrefix}/${libhdfs3DirName}" --target install
-    # echo $pwd
-    #     # mkdir build
-    #     # cd build
-    #     # ../bootstrap
-    #     # make
-    #     # make install
-    #     echo "We are heeeere"
+       echo $PWD
+       echo yeeah
+       cd libhdfs3-master
+    #    echo $PWD
+    #    rm -rf build
+    #    mkdir build
+    #    cd build
+    #    echo $PWDs
+    #    ../bootstrap
+    #     make
+    #     make install
+       echo "We are heeeere"
 
     #     pwd
-    #     dependency_install_success "libhdfs3_v${libhdfs3Version}"
-    # else
-    # daphne_msg "No need to build libhdfs3 again."
-    # fi
+         dependency_install_success "libhdfs3_v${libhdfs3Version}"
+    else
+       daphne_msg "No need to build libhdfs3 again."
+    fi
 
     echo "We are oouuuut"
 

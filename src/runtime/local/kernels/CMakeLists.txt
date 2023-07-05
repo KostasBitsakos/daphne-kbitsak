@@ -16,6 +16,28 @@
 # directory) as the basis for the pre-compiled kernels library.
 
 # The library of pre-compiled CUDA kernels
+
+
+# Set the path to the libhdfs3 library and its dependencies
+set(LIBHDFS3_ROOT "/home/kostas/workspace/container-kbitsak/daphne-kbitsak/thirdparty/sources/libhdfs3-2.10.0/libhdfs3-master")
+
+# Include the libhdfs3 library and its dependencies
+include_directories(${LIBHDFS3_ROOT}/src/client)
+include_directories(${LIBHDFS3_ROOT}/dist/include)
+include_directories(${LIBHDFS3_ROOT}/build/src)
+
+find_library(HDFS3_LIBRARY NAMES hdfs3 PATHS ${LIBHDFS3_ROOT}/dist/lib)
+message(STATUS "HDFS3_LIBRARY: ${HDFS3_LIBRARY}")
+# find_library(GSASL_LIBRARY_DIR NAMES libgsasl.so.18 PATHS /usr/local/lib/)
+# message(STATUS "GSASL_LIBRARY: ${GSASL_LIBRARY}")
+
+# # Include the libhdfs3 library and its dependencies
+# include_directories(${LIBHDFS3_ROOT1})
+# link_directories(${LIBHDFS3_ROOT}/hdfs)
+
+# Add the libhdfs3 library to the target
+
+
 if(USE_CUDA AND CMAKE_CUDA_COMPILER)
     add_custom_command(
             OUTPUT ${PROJECT_BINARY_DIR}/src/runtime/local/kernels/CUDAkernels.cpp
@@ -94,6 +116,6 @@ else()
     list(APPEND LIBS LLVMSupport)
 endif()
 
-list(APPEND LIBS Arrow::arrow_shared Parquet::parquet_shared DaphneMetaDataParser MLIRDaphne MLIRDaphneTransforms)
+list(APPEND LIBS Arrow::arrow_shared Parquet::parquet_shared DaphneMetaDataParser MLIRDaphne MLIRDaphneTransforms ${HDFS3_LIBRARY})
 
 target_link_libraries(AllKernels PUBLIC ${LIBS})

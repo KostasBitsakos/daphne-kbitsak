@@ -19,11 +19,18 @@
 #include <runtime/local/context/DaphneContext.h>
 #include <runtime/local/datastructures/DataObjectFactory.h>
 #include <runtime/local/datastructures/DenseMatrix.h>
+#include <runtime/local/io/HdfsFile.h>
 
 #include <cblas.h>
 
 #include <cassert>
 #include <cstddef>
+
+//#include <hdfs.pb.h >
+//#include <libhdfs3.so>
+//#include <hdfs/hdfs.h>
+
+
 
 // ****************************************************************************
 // Struct for partial template specialization
@@ -59,6 +66,17 @@ struct MatMul<DenseMatrix<float>, DenseMatrix<float>, DenseMatrix<float>> {
         const auto nc2 = static_cast<int>(transb ? rhs->getNumRows() : rhs->getNumCols());
         assert((nc1 == static_cast<int>(transb ? rhs->getNumCols() : rhs->getNumRows())) && "#cols of lhs and #rows of rhs must be the same");
 
+//         const char* host = "hdfs://localhost";
+//   tPort port = 9000;  // Default port
+//   const char* user = "hdoop";
+
+//   hdfsFS fs = connectToHdfs1(host, port, user);
+//   if (fs == NULL) {
+//     std::cout << "Error connecting to HDFS" << std::endl;
+//   }
+       
+
+
         if(res == nullptr)
             res = DataObjectFactory::create<DenseMatrix<float>>(nr1, nc2, false);
 
@@ -84,7 +102,8 @@ struct MatMul<DenseMatrix<double>, DenseMatrix<double>, DenseMatrix<double>> {
         const auto nc1 = static_cast<int>(transa ? lhs->getNumRows() : lhs->getNumCols());
         const auto nc2 = static_cast<int>(transb ? rhs->getNumRows() : rhs->getNumCols());
         assert((nc1 == static_cast<int>(transb ? rhs->getNumCols() : rhs->getNumRows())) && "#cols of lhs and #rows of rhs must be the same");
-        
+        //hdfsFS fs = hdfsConnect("default", 0);
+
         if(res == nullptr)
             res = DataObjectFactory::create<DenseMatrix<double>>(nr1, nc2, false);
 

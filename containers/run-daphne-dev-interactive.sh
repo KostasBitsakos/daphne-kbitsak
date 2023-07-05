@@ -22,6 +22,29 @@ PATH=/daphne/bin:$PATH
 
 # shellcheck disable=SC2046
 # added "-p 50070:50070" in order to be able to see it on the browser
-docker run --hostname daphne-container -it --rm -w "$DAPHNE_ROOT" \
- -e TERM=screen-256color -e PATH -e LD_LIBRARY_PATH -e USER=$(id -n -u) -e UID=$(id -u) -e GID=$(id -g)  \
- -v "$DAPHNE_ROOT:$DAPHNE_ROOT" $DOCKER_IMAGE
+# docker run --hostname daphne-container --network=host --add-host=daphne-container:127.17.0.5 -it --rm -w "$DAPHNE_ROOT" \
+#  -e TERM=screen-256color -e PATH -e LD_LIBRARY_PATH -e USER=$(id -n -u) -e UID=$(id -u) -e GID=$(id -g)  \
+#  -v "$DAPHNE_ROOT:$DAPHNE_ROOT" $DOCKER_IMAGE
+
+
+
+
+# with hdoop user
+# docker run --hostname daphne-container --network=host --add-host=daphne-container:127.17.0.5 -it --rm -w "$DAPHNE_ROOT" \
+#  -e TERM=screen-256color -e PATH -e LD_LIBRARY_PATH -e USER=hdoop -e UID=$(id -u hdoop) -e GID=$(id -g hdoop)  \
+#  -v "$DAPHNE_ROOT:$DAPHNE_ROOT" $DOCKER_IMAGE
+
+#with hdoop user and hadoop installation mounted
+# docker run --hostname daphne-container --network=host --add-host=daphne-container:127.17.0.5 -it --rm -w "$DAPHNE_ROOT" \
+#  -e TERM=screen-256color -e PATH -e LD_LIBRARY_PATH -e USER=hdoop -e UID=$(id -u hdoop) -e GID=$(id -g hdoop)  \
+#  -v "$DAPHNE_ROOT:$DAPHNE_ROOT" -v /home/hdoop/hadoop-3.3.5/bin:/usr/local/hadoop/bin $DOCKER_IMAGE
+
+#with hdoop user and hadoop installation mounted
+#  docker run --hostname daphne-container --network=host --add-host=daphne-container:127.17.0.5 -it --rm -w "$DAPHNE_ROOT" \
+# -e TERM=screen-256color -e PATH -e LD_LIBRARY_PATH -e USER=hdoop -e UID=$(id -u hdoop) -e GID=$(id -g hdoop)  \
+# -v "$DAPHNE_ROOT:$DAPHNE_ROOT" -v /home/hdoop/hadoop-3.3.5:/home/hdoop/hadoop-3.3.5 $DOCKER_IMAGE
+
+
+ docker run --hostname daphne-container --network=host --add-host=daphne-container:127.17.0.5 -it --rm -w "$DAPHNE_ROOT" \
+ -e TERM=screen-256color -e PATH -e LD_LIBRARY_PATH -e USER=hdoop -e UID=$(id -u hdoop) -e GID=$(id -g hdoop)  \
+ -v "$DAPHNE_ROOT:$DAPHNE_ROOT" -v /home/hdoop/hadoop-3.3.5:/home/hdoop/hadoop-3.3.5 $DOCKER_IMAGE
