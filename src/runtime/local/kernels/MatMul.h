@@ -19,12 +19,16 @@
 #include <runtime/local/context/DaphneContext.h>
 #include <runtime/local/datastructures/DataObjectFactory.h>
 #include <runtime/local/datastructures/DenseMatrix.h>
-#include <runtime/local/io/HdfsFile.h>
+
 
 #include <cblas.h>
 
 #include <cassert>
 #include <cstddef>
+//#include <runtime/local/io/ReadHDFSCsv.h>
+//#include <runtime/local/kernels/ReadHDFS.h>
+
+
 
 //#include <hdfs.pb.h >
 //#include <libhdfs3.so>
@@ -66,16 +70,9 @@ struct MatMul<DenseMatrix<float>, DenseMatrix<float>, DenseMatrix<float>> {
         const auto nc2 = static_cast<int>(transb ? rhs->getNumRows() : rhs->getNumCols());
         assert((nc1 == static_cast<int>(transb ? rhs->getNumCols() : rhs->getNumRows())) && "#cols of lhs and #rows of rhs must be the same");
 
-//         const char* host = "hdfs://localhost";
-//   tPort port = 9000;  // Default port
-//   const char* user = "hdoop";
+        //readHDFSCsv(res, "/home/kostas/workspace/mycsv4.csv","/user/hdoop/tmp_testing/mycsv2.csv", 3, 3, ',');
 
-//   hdfsFS fs = connectToHdfs1(host, port, user);
-//   if (fs == NULL) {
-//     std::cout << "Error connecting to HDFS" << std::endl;
-//   }
-       
-
+        //readHDFS(res, "/home/kostas/workspace/mycsv3.csv","/user/hdoop/tmp_testing/mycsv2.csv", 3, 3, nullptr);
 
         if(res == nullptr)
             res = DataObjectFactory::create<DenseMatrix<float>>(nr1, nc2, false);

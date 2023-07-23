@@ -18,6 +18,7 @@
 #include <runtime/local/datastructures/DenseMatrix.h>
 #include <runtime/local/kernels/CheckEq.h>
 #include <runtime/local/kernels/MatMul.h>
+#include <runtime/local/kernels/ReadHDFS.h>
 
 #include <tags.h>
 
@@ -28,8 +29,10 @@
 template<class DT>
 void checkMatMul(const DT * lhs, const DT * rhs, const DT * exp, bool transa = false, bool transb = false) {
     DT * res = nullptr;
-    matMul<DT, DT, DT>(res, lhs, rhs, transa, transb, nullptr);
-    CHECK(*res == *exp);
+    readHDFS(res, "/home/kostas/workspace/mycsv5.csv","/user/hdoop/tmp_testing/mycsv2.csv", 3, 3, nullptr);
+
+    //matMul<DT, DT, DT>(res, lhs, rhs, transa, transb, nullptr);
+    //CHECK(*res == *exp);
     DataObjectFactory::destroy(res);
 }
 

@@ -1683,6 +1683,45 @@
     },
     {
         "kernelTemplate": {
+            "header": "ReadHDFS.h",
+            "opName": "readHDFS",
+            "returnType": "void",
+            "templateParams": [
+                {
+                    "name": "DTRes",
+                    "isDataType": true
+                }
+            ],
+            "runtimeParams": [
+                {
+                    "type": "DTRes *&",
+                    "name": "res"
+                },
+                {
+                    "type": "const char *",
+                    "name": "filename"
+                },
+                {
+                    "type": "const char *",
+                    "name": "hdfsFilename"
+                },
+                {
+                    "type": "size_t",
+                    "name": "numRows"
+                },
+                {
+                    "type": "size_t",
+                    "name": "numCols"
+                }
+            ]
+        },
+        "instantiations": [
+            [["DenseMatrix", "float"]],
+            [["DenseMatrix", "double"]]
+        ]
+    },
+    {
+        "kernelTemplate": {
             "header": "Write.h",
             "opName": "write",
             "returnType": "void",

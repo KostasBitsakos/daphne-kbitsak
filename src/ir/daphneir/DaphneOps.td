@@ -1181,6 +1181,11 @@ def Daphne_ReadOp : Daphne_Op<"read", [
     let results = (outs MatrixOrFrame:$res);
 }
 
+def Daphne_ReadHDFSOp : Daphne_Op<"readHDFS"> {
+    let arguments = (ins StrScalar:$fileName, StrScalar:$hdfsFilename, Size:$numRows, Size:$numCols);
+    let results = (outs Matrix:$res); // Dense Matrix 
+}
+
 def Daphne_WriteOp : Daphne_Op<"write"> {
     let arguments = (ins MatrixOrFrame:$arg, StrScalar:$fileName);
     let results = (outs); // no results
