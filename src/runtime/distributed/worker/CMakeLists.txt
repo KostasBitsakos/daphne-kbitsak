@@ -24,6 +24,16 @@ set(SOURCES
         ../../../compiler/execution/DaphneIrExecutor.cpp)
 
 #source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${SOURCES})
+# Set the path to the libhdfs3 library and its dependencies
+set(LIBHDFS3_ROOT "/home/kostas/workspace/container-kbitsak/daphne-kbitsak/thirdparty/sources/libhdfs3-2.10.0/libhdfs3-master")
+
+# Include the libhdfs3 library and its dependencies
+include_directories(${LIBHDFS3_ROOT}/src/client)
+include_directories(${LIBHDFS3_ROOT}/dist/include)
+include_directories(${LIBHDFS3_ROOT}/build/src)
+
+find_library(HDFS3_LIBRARY NAMES hdfs3 PATHS ${LIBHDFS3_ROOT}/dist/lib)
+message(STATUS "HDFS3_LIBRARY: ${HDFS3_LIBRARY}")
 
 get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
 get_property(conversion_libs GLOBAL PROPERTY MLIR_CONVERSION_LIBS)
@@ -42,6 +52,7 @@ set(LIBS
         DaphneMetaDataParser
         Arrow::arrow_shared
         Parquet::parquet_shared
+        ${HDFS3_LIBRARY}
         )
 
 add_library(WorkerImpl ${SOURCES})
