@@ -29,11 +29,19 @@
 template<class DT>
 void checkMatMul(const DT * lhs, const DT * rhs, const DT * exp, bool transa = false, bool transb = false) {
     DT * res = nullptr;
-    readHDFS(res, "/home/kostas/workspace/mycsv5.csv","/user/hdoop/tmp_testing/mycsv2.csv", 3, 3, nullptr);
+     auto m0 = genGivenVals<DT>(3, {
+        0, 0, 0,
+        0, 0, 0,
+        0, 0, 0,
+    });
+    //readHDFS(res, "/home/kostas/workspace/mycsv7.csv","/user/hdoop/tmp_testing/mycsv2.csv", 3, 3, nullptr);
+    writeHDFSCsv(m0, "/user/hdoop/new.csv");
+    hDFSblocklocations(m0, "/user/hdoop/new.csv");
 
-    //matMul<DT, DT, DT>(res, lhs, rhs, transa, transb, nullptr);
-    //CHECK(*res == *exp);
-    DataObjectFactory::destroy(res);
+
+    matMul<DT, DT, DT>(res, lhs, rhs, transa, transb, nullptr);
+    CHECK(*res == *exp);
+    DataObjectFactory::destroy(res, m0);
 }
 
 TEMPLATE_PRODUCT_TEST_CASE("MatMul", TAG_KERNELS, (DenseMatrix), (float, double)) {

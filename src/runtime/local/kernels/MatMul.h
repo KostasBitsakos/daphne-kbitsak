@@ -28,6 +28,11 @@
 //#include <runtime/local/io/ReadHDFSCsv.h>
 //#include <runtime/local/kernels/ReadHDFS.h>
 
+#include <runtime/local/io/WriteHDFSCsv.h>
+#include <runtime/local/io/HDFSblocllocations.h>
+
+
+
 
 
 //#include <hdfs.pb.h >
