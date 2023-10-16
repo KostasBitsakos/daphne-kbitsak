@@ -366,6 +366,12 @@ mlir::OpFoldResult mlir::daphne::ConstantOp::fold(FoldAdaptor adaptor)
             || elementType.isF32()
             || elementType.isF64()
             || elementType.isIndex()
+            || elementType.isInteger(1)
+            || elementType.isa<mlir::daphne::StringType>()
+            || elementType.isUnsignedInteger(64)
+            || elementType.isUnsignedInteger(32)
+            || elementType.isSignedInteger(32)
+            || elementType.isSignedInteger(8)
         ) && (
             // Number of rows and columns are valid (-1 for unknown).
             numRows >= -1 && numCols >= -1
@@ -700,6 +706,7 @@ mlir::OpFoldResult mlir::daphne::EwModOp::fold(FoldAdaptor adaptor) {
 mlir::OpFoldResult mlir::daphne::EwLogOp::fold(FoldAdaptor adaptor) {
     ArrayRef<Attribute> operands = adaptor.getOperands();
     auto floatOp = [](const llvm::APFloat &a, const llvm::APFloat &b) {
+        // TODO This is a bug (see #615).
         // Equivalent to log_b(a)
         return ilogb(a) / ilogb(b);
     };

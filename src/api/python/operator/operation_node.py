@@ -72,6 +72,8 @@ class OperationNode(DAGNode):
     def compute(self, type="shared memory"):
         if self._result_var is None:
             self._script = DaphneDSLScript(self.daphne_context)
+            for definition in self.daphne_context._functions.values():
+                self._script.daphnedsl_script += definition
             result = self._script.build_code(self, type)
             self._script.execute()
             self._script.clear(self)
@@ -93,6 +95,14 @@ class OperationNode(DAGNode):
                 arr = np.genfromtxt(result, delimiter=',')
                 self.clear_tmp()
                 return arr
+            elif self._output_type == OutputType.SCALAR:
+                # We transfer scalars back to Python by wrapping them into a 1x1 matrix.
+                daphneLibResult = DaphneLib.getResult()
+                result = np.ctypeslib.as_array(
+                    ctypes.cast(daphneLibResult.address, ctypes.POINTER(self.getType(daphneLibResult.vtc))),
+                    shape=[daphneLibResult.rows, daphneLibResult.cols]
+                )[0, 0]
+                self.clear_tmp()
                
             if result is None:
                 return
@@ -109,7 +119,7 @@ class OperationNode(DAGNode):
             assert len(
                 named_input_vars) == 0, 'named parameters can not be used with binary operations'
             assert len(unnamed_input_vars)==2, 'Binary operations need exactly two input variables'
-            return f'{var_name}={unnamed_input_vars[0]}{self.operation}{unnamed_input_vars[1]};'
+            return f'{var_name}={unnamed_input_vars[0]} {self.operation} {unnamed_input_vars[1]};'
         inputs_comma_sep = create_params_string(unnamed_input_vars, named_input_vars).format(file_name=var_name)
         if self.output_type == OutputType.NONE:
             return f'{self.operation}({inputs_comma_sep});'

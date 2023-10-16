@@ -38,14 +38,16 @@
     #include <runtime/local/kernels/CUDA/HostUtils.h>
 #endif
 
+#include <chrono>
 #include <exception>
 #include <iostream>
 #include <string>
 #include <unordered_map>
+#include <csignal>
+#include <csetjmp>
 
-#include <cstdlib>
-
-[[maybe_unused]] std::unique_ptr<DaphneLogger> logger;
+// global logger handle for this executable
+static std::unique_ptr<DaphneLogger> logger;
 
 using namespace std;
 using namespace mlir;
@@ -66,12 +68,30 @@ void parseScriptArgs(const llvm::cl::list<string>& scriptArgsCli, unordered_map<
 void printVersion(llvm::raw_ostream& os) {
     // TODO Include some of the important build flags into the version string.
     os
-      << "DAPHNE Version 0.1\n"
+      << "DAPHNE Version 0.2\n"
       << "An Open and Extensible System Infrastructure for Integrated Data Analysis Pipelines\n"
       << "https://github.com/daphne-eu/daphne\n";
 }
-    
-int startDAPHNE(int argc, const char** argv, DaphneLibResult* daphneLibRes, int *id){
+
+namespace
+{
+    volatile std::sig_atomic_t gSignalStatus;
+    jmp_buf return_from_handler;
+}
+
+void handle_sig_abort(int signal) {
+    spdlog::error("Got an abort signal from the execution engine. Most likely an exception in a shared library. Check logs!");
+    gSignalStatus = signal;
+    longjmp(return_from_handler, gSignalStatus);
+}
+
+int startDAPHNE(int argc, const char** argv, DaphneLibResult* daphneLibRes, int *id, DaphneUserConfig& user_config){
+    using clock = std::chrono::high_resolution_clock;
+    clock::time_point tpBeg = clock::now();
+
+    // install signal handler to catch information from shared libraries (for exception handling)
+    std::signal(SIGABRT, handle_sig_abort);
+
     // ************************************************************************
     // Parse command line arguments
     // ************************************************************************
@@ -103,9 +123,10 @@ int startDAPHNE(int argc, const char** argv, DaphneLibResult* daphneLibRes, int 
                                             desc("Choose the options for the distribution backend:"),
                                             values(
                                                     clEnumValN(ALLOCATION_TYPE::DIST_MPI, "MPI", "Use message passing interface for internode data exchange"),
-                                                    clEnumValN(ALLOCATION_TYPE::DIST_GRPC, "gRPC", "Use remote procedure call for internode data exchange (default)")
+                                                    clEnumValN(ALLOCATION_TYPE::DIST_GRPC_SYNC, "sync-gRPC", "Use remote procedure call (synchronous gRPC with threading) for internode data exchange (default)"),
+                                                    clEnumValN(ALLOCATION_TYPE::DIST_GRPC_ASYNC, "async-gRPC", "Use remote procedure call (asynchronous gRPC) for internode data exchange")
                                                 ),
-                                            init(ALLOCATION_TYPE::DIST_GRPC)
+                                            init(ALLOCATION_TYPE::DIST_GRPC_SYNC)
                                             );
 
     
@@ -189,7 +210,7 @@ int startDAPHNE(int argc, const char** argv, DaphneLibResult* daphneLibRes, int 
     );
     
     // Other options
-    
+
     static opt<bool> noObjRefMgnt(
             "no-obj-ref-mgnt", cat(daphneOptions),
             desc(
@@ -282,6 +303,10 @@ int startDAPHNE(int argc, const char** argv, DaphneLibResult* daphneLibRes, int 
             "enable-profiling", cat(daphneOptions),
             desc("Enable profiling support")
     );
+    static opt<bool> timing (
+            "timing", cat(daphneOptions),
+            desc("Enable timing of high-level steps (start-up, parsing, compilation, execution) and print the times to stderr in JSON format")
+    );
 
     // Positional arguments ---------------------------------------------------
     
@@ -316,35 +341,39 @@ int startDAPHNE(int argc, const char** argv, DaphneLibResult* daphneLibRes, int 
     // Process parsed arguments
     // ************************************************************************
 
-    // Initialize user configuration.
-    DaphneUserConfig user_config{};
     try {
         if (configFile != configFileInitValue && ConfigParser::fileExists(configFile)) {
             ConfigParser::readUserConfig(configFile, user_config);
         }
-        else {
-//            spdlog::warn("No configuration file provided - using defaults!");
-            user_config.loggers.push_back(LogConfig({"default", "daphne-output.txt",
-                    static_cast<int>(spdlog::level::warn), "\">>>>>>>>> %H:%M:%S %z %v\""}));
-        }
     }
     catch(std::exception & e) {
-        std::cerr << "Error while reading user config: " << e.what() << std::endl;
+        spdlog::error("Parser error while reading user config:\n{}", e.what());
         return StatusCode::PARSER_ERROR;
     }
-    
-//    user_config.debug_llvm = true;
+
+    // initialize logging facility
+    if(not logger)
+        logger = std::make_unique<DaphneLogger>(user_config);
+
     user_config.use_vectorized_exec = useVectorizedPipelines;
     user_config.use_distributed = useDistributedRuntime; 
     user_config.use_obj_ref_mgnt = !noObjRefMgnt;
     user_config.use_ipa_const_propa = !noIPAConstPropa;
     user_config.use_phy_op_selection = !noPhyOpSelection;
-    user_config.libdir = libDir.getValue();
+    if(!libDir.getValue().empty())
+        user_config.libdir = libDir.getValue();
     user_config.library_paths.push_back(user_config.libdir + "/libAllKernels.so");
     user_config.taskPartitioningScheme = taskPartitioningScheme;
     user_config.queueSetupScheme = queueSetupScheme;
 	user_config.victimSelection = victimSelection;
-    user_config.numberOfThreads = numberOfThreads; 
+
+    // only overwrite with non-defaults
+    if(numberOfThreads != 0) {
+        spdlog::trace("Overwriting config file supplied numberOfThreads={} with command line argument --num-threads={}",
+                      user_config.numberOfThreads, numberOfThreads);
+        user_config.numberOfThreads = numberOfThreads;
+    }
+
     user_config.minimumTaskSize = minimumTaskSize; 
     user_config.pinWorkers = pinWorkers;
     user_config.hyperthreadingEnabled = hyperthreadingEnabled;
@@ -353,8 +382,8 @@ int startDAPHNE(int argc, const char** argv, DaphneLibResult* daphneLibRes, int 
     user_config.distributedBackEndSetup = distributedBackEndSetup;
     if(user_config.use_distributed)
     {
-        if(user_config.distributedBackEndSetup!=ALLOCATION_TYPE::DIST_MPI &&  user_config.distributedBackEndSetup!=ALLOCATION_TYPE::DIST_GRPC)
-            std::cout<<"No backend has been selected. Wiil use the default 'MPI'\n";
+        if(user_config.distributedBackEndSetup!=ALLOCATION_TYPE::DIST_MPI &&  user_config.distributedBackEndSetup!=ALLOCATION_TYPE::DIST_GRPC_SYNC &&  user_config.distributedBackEndSetup!=ALLOCATION_TYPE::DIST_GRPC_ASYNC)
+            spdlog::warn("No backend has been selected. Wiil use the default 'MPI'");
     }
     for (auto explain : explainArgList) {
         switch (explain) {
@@ -419,7 +448,7 @@ int startDAPHNE(int argc, const char** argv, DaphneLibResult* daphneLibRes, int 
         CHECK_CUDART(cudaGetDeviceCount(&device_count));
 #endif
         if(device_count < 1)
-            std::cerr << "WARNING: CUDA ops requested by user option but no suitable device found" << std::endl;
+            spdlog::warn("CUDA ops requested by user option but no suitable device found");
         else {
             user_config.use_cuda = true;
         }
@@ -447,15 +476,15 @@ int startDAPHNE(int argc, const char** argv, DaphneLibResult* daphneLibRes, int 
         parseScriptArgs(scriptArgs1, scriptArgsFinal);
     }
     catch(exception& e) {
-        std::cerr << "Parser error: " << e.what() << std::endl;
+        spdlog::error("Parser error: {}", e.what());
         return StatusCode::PARSER_ERROR;
     }
-    
-    logger = std::make_unique<DaphneLogger>(user_config);
 
     // ************************************************************************
-    // Compile and execute script
+    // Parse, compile and execute DaphneDSL script
     // ************************************************************************
+
+    clock::time_point tpBegPars = clock::now();
 
     // Creates an MLIR context and loads the required MLIR dialects.
     DaphneIrExecutor executor(selectMatrixRepr, user_config);
@@ -476,9 +505,11 @@ int startDAPHNE(int argc, const char** argv, DaphneLibResult* daphneLibRes, int 
         parser.parseFile(builder, inputFile);
     }
     catch(std::exception & e) {
-        std::cerr << "Parser error: " << e.what() << std::endl;
+        spdlog::error("Parser error: {}", e.what());
         return StatusCode::PARSER_ERROR;
     }
+
+    clock::time_point tpBegComp = clock::now();
 
     // Further, process the module, including optimization and lowering passes.
     try{
@@ -486,33 +517,77 @@ int startDAPHNE(int argc, const char** argv, DaphneLibResult* daphneLibRes, int 
             return StatusCode::PASS_ERROR;
         }
     }
-    catch(std::exception & e){
-        std::cerr << "Pass error: " << e.what() << std::endl;
+    catch(std::exception & e) {
+        spdlog::error("Pass error: {}", e.what());
+        return StatusCode::PASS_ERROR;
+    }
+    catch(...) {
+        spdlog::error("Pass error: Unknown exception");
         return StatusCode::PASS_ERROR;
     }
 
     // JIT-compile the module and execute it.
     // module->dump(); // print the LLVM IR representation
+    clock::time_point tpBegExec;
     try{
         auto engine = executor.createExecutionEngine(moduleOp);
-        auto error = engine->invoke("main");
-        if (error) {
-            llvm::errs() << "JIT-Engine invocation failed: " << error;
+        tpBegExec = clock::now();
+
+        // set jump address for catching exceptions in kernel libraries via signal handling
+        if(setjmp(return_from_handler) == 0) {
+            auto error = engine->invoke("main");
+            if (error) {
+                llvm::errs() << "JIT-Engine invocation failed: " << error;
+                return StatusCode::EXECUTION_ERROR;
+            }
+        }
+        else {
+            spdlog::error("Execution error: Returning from signal {}", gSignalStatus);
             return StatusCode::EXECUTION_ERROR;
         }
     }
-    catch(std::exception & e){
-        std::cerr << "Execution error: " << e.what() << std::endl;
+    catch (std::runtime_error& re) {
+        spdlog::error("Execution error: {}", re.what());
         return StatusCode::EXECUTION_ERROR;
     }
+    catch(std::exception & e){
+        spdlog::error("Execution error: {}", e.what());
+        return StatusCode::EXECUTION_ERROR;
+    }
+    clock::time_point tpEnd = clock::now();
 
-    return StatusCode::SUCCESS;
+    if(timing) {
+        // Calculate durations of the individual high-level steps of DAPHNE.
+        double durStrt  = chrono::duration_cast<chrono::duration<double>>(tpBegPars - tpBeg    ).count();
+        double durPars  = chrono::duration_cast<chrono::duration<double>>(tpBegComp - tpBegPars).count();
+        double durComp  = chrono::duration_cast<chrono::duration<double>>(tpBegExec - tpBegComp).count();
+        double durExec  = chrono::duration_cast<chrono::duration<double>>(tpEnd     - tpBegExec).count();
+        double durTotal = chrono::duration_cast<chrono::duration<double>>(tpEnd     - tpBeg    ).count();
+        // ToDo: use logger
+        // Output durations in JSON.
+        std::cerr << "{";
+        std::cerr << "\"startup_seconds\": "     << durStrt  << ", ";
+        std::cerr << "\"parsing_seconds\": "     << durPars  << ", ";
+        std::cerr << "\"compilation_seconds\": " << durComp  << ", ";
+        std::cerr << "\"execution_seconds\": "   << durExec  << ", ";
+        std::cerr << "\"total_seconds\": "       << durTotal;
+        std::cerr << "}" << std::endl;
+    }
+
+    if(gSignalStatus != 0)
+        return StatusCode::EXECUTION_ERROR;
+    else
+        return StatusCode::SUCCESS;
 }
 
 
 int mainInternal(int argc, const char** argv, DaphneLibResult* daphneLibRes){
     int id=-1; // this  -1 would not change if the user did not select mpi backend during execution
-    int res=startDAPHNE(argc, argv, daphneLibRes, &id);
+
+    // Initialize user configuration.
+    DaphneUserConfig user_config{};
+
+    int res=startDAPHNE(argc, argv, daphneLibRes, &id, user_config);
 
 #ifdef USE_MPI    
     if(id==COORDINATOR)
@@ -526,7 +601,7 @@ int mainInternal(int argc, const char** argv, DaphneLibResult* daphneLibRes){
        MPI_Finalize();
     }   
     else if(id>-1){
-        MPIWorker worker;
+        MPIWorker worker(user_config);
         worker.joinComputingTeam();
         res=StatusCode::SUCCESS;
         MPI_Finalize();

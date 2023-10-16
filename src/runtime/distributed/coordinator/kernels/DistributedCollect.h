@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-#ifndef SRC_RUNTIME_DISTRIBUTED_COORDINATOR_KERNELS_DISTRIBUTEDCOLLECT_H
-#define SRC_RUNTIME_DISTRIBUTED_COORDINATOR_KERNELS_DISTRIBUTEDCOLLECT_H
+#pragma once
 
 #include <runtime/local/context/DaphneContext.h>
+#include <runtime/local/context/DistributedContext.h>
 #include <runtime/local/datastructures/DataObjectFactory.h>
 #include <runtime/local/datastructures/DenseMatrix.h>
 
 #include <runtime/local/datastructures/AllocationDescriptorGRPC.h>
-#include <runtime/distributed/proto/ProtoDataConverter.h>
+#include <runtime/local/io/DaphneSerializer.h>
 #include <runtime/distributed/proto/DistributedGRPCCaller.h>
 #include <runtime/distributed/proto/worker.pb.h>
 #include <runtime/distributed/proto/worker.grpc.pb.h>
@@ -71,38 +71,51 @@ struct DistributedCollect<ALLOCATION_TYPE::DIST_MPI, DT>
     static void apply(DT *&mat, DCTX(dctx)) 
     {
         assert (mat != nullptr && "result matrix must be already allocated by wrapper since only there exists information regarding size");        
-        int worldSize= MPIHelper::getCommSize()-1;
-        auto collectedDataItems=0u;
-        for(int rank=0; rank<worldSize ; rank++) // we currently exclude the coordinator
+        size_t worldSize = MPIHelper::getCommSize();
+        for(size_t rank=0; rank<worldSize ; rank++) 
         {
-            //if(rank==COORDINATOR)
-            //    continue;
-            int target_rank;    
-            distributed::Data protoMessage=MPIHelper::getResults(&target_rank);    
-            std::string address = std::to_string(target_rank);  
+            if(rank==COORDINATOR) // we currently exclude the coordinator
+               continue;
+            
+            std::string address = std::to_string(rank);  
             auto dp=mat->getMetaDataObject()->getDataPlacementByLocation(address);   
             auto distributedData = dynamic_cast<AllocationDescriptorMPI&>(*(dp->allocation)).getDistributedData();            
-            if(std::stoi(address)==COORDINATOR)
-                continue;
-            //std::cout<<"from distributed collect address " <<address<< " rows from "<< dp->range->r_start<< " to "<< (dp->range->r_start + dp->range->r_len) <<" cols from " <<  dp->range->c_start << " to " << (dp->range->c_start + dp->range->c_len)  <<std::endl;
-            auto data = dynamic_cast<AllocationDescriptorMPI&>(*(dp->allocation)).getDistributedData();                  
+            WorkerImpl::StoredInfo info = {
+                distributedData.identifier,
+                distributedData.numRows,
+                distributedData.numCols
+            };
+            MPIHelper::requestData(rank, info);
+        }
+        auto collectedDataItems = 0u;
+        for (size_t i = 1; i < worldSize; i++) {
+            size_t len;
+            int rank;
+            std::vector<char> buffer;
+            MPIHelper::getMessage(&rank, TypesOfMessages::OUTPUT, MPI_UNSIGNED_CHAR, buffer, &len);
+            
+            std::string address = std::to_string(rank);  
+            auto dp = mat->getMetaDataObject()->getDataPlacementByLocation(address);   
+                    
             auto denseMat = dynamic_cast<DenseMatrix<double>*>(mat);
-            //auto toDisplay = DataObjectFactory::create<DenseMatrix<double>>(dp->range->r_len, dp->range->c_len, false);
             if (!denseMat){
                 throw std::runtime_error("Distribute grpc only supports DenseMatrix<double> for now");
+            }            
+
+            auto slicedMat = dynamic_cast<DenseMatrix<double>*>(DF_deserialize(buffer));
+            auto resValues = denseMat->getValues() + (dp->range->r_start * denseMat->getRowSkip());
+            auto slicedMatValues = slicedMat->getValues();
+            for (size_t r = 0; r < dp->range->r_len; r++) {
+                memcpy(resValues + dp->range->c_start, slicedMatValues, dp->range->c_len * sizeof(double));
+                resValues += denseMat->getRowSkip();
+                slicedMatValues += slicedMat->getRowSkip();
             }
             
-            //ProtoDataConverter<DenseMatrix<double>>::convertFromProto(protoMessage.matrix(),toDisplay);
-            //std::string message="coordinator got the following from (" + address +") ";
-            //MPIHelper::displayDataStructure(toDisplay,message);
-
-            ProtoDataConverter<DenseMatrix<double>>::convertFromProto(
-                protoMessage.matrix(), denseMat,
-                dp->range->r_start, dp->range->r_start + dp->range->r_len,
-                dp->range->c_start, dp->range->c_start + dp->range->c_len);
             collectedDataItems+=  dp->range->r_len *  dp->range->c_len;
-            data.isPlacedAtWorker = false;
-            dynamic_cast<AllocationDescriptorMPI&>(*(dp->allocation)).updateDistributedData(data);
+
+            auto distributedData = dynamic_cast<AllocationDescriptorMPI&>(*(dp->allocation)).getDistributedData();            
+            distributedData.isPlacedAtWorker = false;
+            dynamic_cast<AllocationDescriptorMPI&>(*(dp->allocation)).updateDistributedData(distributedData);
             // this is to handle the case when not all workers participate in the computation, i.e., number of workers is larger than of the work items
             if(collectedDataItems == denseMat->getNumRows() * denseMat->getNumCols())
                 break;
@@ -112,11 +125,11 @@ struct DistributedCollect<ALLOCATION_TYPE::DIST_MPI, DT>
 #endif
 
 // ----------------------------------------------------------------------------
-// GRPC
+// Asynchronous GRPC
 // ----------------------------------------------------------------------------
 
 template<class DT>
-struct DistributedCollect<ALLOCATION_TYPE::DIST_GRPC, DT>
+struct DistributedCollect<ALLOCATION_TYPE::DIST_GRPC_ASYNC, DT>
 {
     static void apply(DT *&mat, DCTX(dctx)) 
     {
@@ -125,7 +138,7 @@ struct DistributedCollect<ALLOCATION_TYPE::DIST_GRPC, DT>
         struct StoredInfo{
             size_t dp_id;
         };
-        DistributedGRPCCaller<StoredInfo, distributed::StoredData, distributed::Matrix> caller;
+        DistributedGRPCCaller<StoredInfo, distributed::StoredData, distributed::Data> caller(dctx);
 
 
         auto dpVector = mat->getMetaDataObject()->getDataPlacementByType(ALLOCATION_TYPE::DIST_GRPC);
@@ -152,18 +165,82 @@ struct DistributedCollect<ALLOCATION_TYPE::DIST_GRPC, DT>
 
             auto matProto = response.result;
             
+            // TODO: We need to handle different data types 
             auto denseMat = dynamic_cast<DenseMatrix<double>*>(mat);
             if (!denseMat){
                 throw std::runtime_error("Distribute grpc only supports DenseMatrix<double> for now");
-            }        
-            ProtoDataConverter<DenseMatrix<double>>::convertFromProto(
-                matProto, denseMat,
-                dp->range->r_start, dp->range->r_start + dp->range->r_len,
-                dp->range->c_start, dp->range->c_start + dp->range->c_len);                
+            }
+            // Zero copy buffer
+            std::vector<char> buf(static_cast<const char*>(matProto.bytes().data()), static_cast<const char*>(matProto.bytes().data()) + matProto.bytes().size()); 
+            auto slicedMat = dynamic_cast<DenseMatrix<double>*>(DF_deserialize(buf));
+            auto resValues = denseMat->getValues() + (dp->range->r_start * denseMat->getRowSkip());
+            auto slicedMatValues = slicedMat->getValues();
+            for (size_t r = 0; r < dp->range->r_len; r++){
+                memcpy(resValues + dp->range->c_start, slicedMatValues, dp->range->c_len * sizeof(double));
+                resValues += denseMat->getRowSkip();                    
+                slicedMatValues += slicedMat->getRowSkip();
+            }               
             data.isPlacedAtWorker = false;
             dynamic_cast<AllocationDescriptorGRPC&>(*(dp->allocation)).updateDistributedData(data);
         } 
     };
 };
 
-#endif //SRC_RUNTIME_DISTRIBUTED_COORDINATOR_KERNELS_DISTRIBUTEDCOLLECT_H
+
+// ----------------------------------------------------------------------------
+// Synchronous GRPC
+// ----------------------------------------------------------------------------
+
+template<class DT>
+struct DistributedCollect<ALLOCATION_TYPE::DIST_GRPC_SYNC, DT>
+{
+    static void apply(DT *&mat, DCTX(dctx)) 
+    {
+        assert (mat != nullptr && "result matrix must be already allocated by wrapper since only there exists information regarding size");        
+
+        auto ctx = DistributedContext::get(dctx);
+        std::vector<std::thread> threads_vector;
+
+        auto dpVector = mat->getMetaDataObject()->getDataPlacementByType(ALLOCATION_TYPE::DIST_GRPC);
+        for (auto &dp : *dpVector) {
+            auto address = dp->allocation->getLocation();
+            
+            auto distributedData = dynamic_cast<AllocationDescriptorGRPC&>(*(dp->allocation)).getDistributedData();            
+            distributed::StoredData protoData;
+            protoData.set_identifier(distributedData.identifier);
+            protoData.set_num_rows(distributedData.numRows);
+            protoData.set_num_cols(distributedData.numCols);                       
+
+            std::thread t([address, dp = dp.get(), protoData, distributedData, &mat, &ctx]() mutable
+            {
+                auto stub = ctx->stubs[address].get();
+
+                distributed::Data matProto;
+                grpc::ClientContext grpc_ctx;
+                stub->Transfer(&grpc_ctx, protoData, &matProto);
+            
+                // TODO: We need to handle different data types 
+                auto denseMat = dynamic_cast<DenseMatrix<double>*>(mat);
+                if (!denseMat){
+                    throw std::runtime_error("Distribute grpc only supports DenseMatrix<double> for now");
+                }
+                // Zero copy buffer
+                std::vector<char> buf(static_cast<const char*>(matProto.bytes().data()), static_cast<const char*>(matProto.bytes().data()) + matProto.bytes().size()); 
+                auto slicedMat = dynamic_cast<DenseMatrix<double>*>(DF_deserialize(buf));
+                auto resValues = denseMat->getValues() + (dp->range->r_start * denseMat->getRowSkip());
+                auto slicedMatValues = slicedMat->getValues();
+                for (size_t r = 0; r < dp->range->r_len; r++){
+                    memcpy(resValues + dp->range->c_start, slicedMatValues, dp->range->c_len * sizeof(double));
+                    resValues += denseMat->getRowSkip();                    
+                    slicedMatValues += slicedMat->getRowSkip();
+                }               
+                distributedData.isPlacedAtWorker = false;
+                dynamic_cast<AllocationDescriptorGRPC&>(*(dp->allocation)).updateDistributedData(distributedData);
+            });
+            threads_vector.push_back(move(t));        
+        }
+        for (auto &thread : threads_vector)
+            thread.join();
+    };
+};
+
